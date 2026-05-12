@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Subir Excel - Biblos</title>
+</head>
+<body>
+
+    <h1>Subir base de artículos</h1>
+
+    {% if messages %}
+        {% for message in messages %}
+            <p>{{ message }}</p>
+        {% endfor %}
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+
+        {{ form.as_p }}
+
+        <button type="submit">Importar Excel</button>
+    </form>
+
+    <p>
+        <a href="{% url 'article_list' %}">Volver al listado</a>
+    </p>
+
+</body>
+</html>

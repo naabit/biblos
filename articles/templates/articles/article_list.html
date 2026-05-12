@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Artículos - Biblos</title>
+</head>
+<body>
+
+    <h1>Biblos</h1>
+    <h2>Listado de artículos</h2>
+
+    <p>
+        <a href="{% url 'upload_excel' %}">Subir archivo Excel</a>
+    </p>
+
+    <form method="get">
+        <input 
+            type="text" 
+            name="q" 
+            placeholder="Buscar por título, autor, abstract o DOI"
+            value="{{ query|default:'' }}"
+        >
+
+        <select name="status">
+            <option value="">Todos los estados</option>
+            {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>
+                    {{ label }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <select name="year">
+            <option value="">Todos los años</option>
+            {% for y in years %}
+                <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %}>
+                    {{ y }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">Filtrar</button>
+        <a href="{% url 'article_list' %}">Limpiar</a>
+    </form>
+
+    <p>Total visible: {{ articles.count }}</p>
+
+    <table border="1" cellpadding="8">
+        <thead>
+            <tr>
+                <th>Título</th>
+                <th>Autores</th>
+                <th>Año</th>
+                <th>Fuente</th>
+                <th>DOI</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+
+        <tbody>
+            {% for article in articles %}
+                <tr>
+                    <td>{{ article.title }}</td>
+                    <td>{{ article.authors }}</td>
+                    <td>{{ article.year }}</td>
+                    <td>{{ article.source }}</td>
+                    <td>{{ article.doi }}</td>
+                    <td>
+    <form method="post" action="{% url 'update_article_status' article.id %}">
+        {% csrf_token %}
+
+        <select name="status">
+            {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if article.status == value %}selected{% endif %}>
+                    {{ label }}
+                </option>
+            {% endfor %}
+        </select>
+
+        <button type="submit">Guardar</button>
+    </form>
+</td>
+                </tr>
+            {% empty %}
+                <tr>
+                    <td colspan="6">No hay artículos para mostrar.</td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>
