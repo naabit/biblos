@@ -1,93 +1,116 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <title>Artículos - Biblos</title>
-</head>
-<body>
+{% extends "articles/base.html" %}
 
-    <h1>Biblos</h1>
-    <h2>Listado de artículos</h2>
+{% block title %}Artículos - Biblos{% endblock %}
 
-    <p>
-        <a href="{% url 'upload_excel' %}">Subir archivo Excel</a>
-    </p>
+{% block content %}
+  <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
+    <div>
+      <h1 class="h3 mb-1">Listado de artículos</h1>
+      <div class="text-secondary">Total visible: {{ articles.count }}</div>
+    </div>
+    <div>
+      <a class="btn btn-outline-light" href="{% url 'upload_excel' %}">Subir archivo Excel</a>
+    </div>
+  </div>
 
-    <form method="get">
-        <input 
-            type="text" 
-            name="q" 
+  <div class="card glass mb-3">
+    <div class="card-body">
+      <form method="get" class="row g-2 align-items-end">
+        <div class="col-12 col-lg-6">
+          <label for="q" class="form-label">Búsqueda</label>
+          <input
+            id="q"
+            type="text"
+            name="q"
+            class="form-control"
             placeholder="Buscar por título, autor, abstract o DOI"
             value="{{ query|default:'' }}"
-        >
+          />
+        </div>
 
-        <select name="status">
+        <div class="col-12 col-md-6 col-lg-3">
+          <label for="status" class="form-label">Estado</label>
+          <select id="status" name="status" class="form-select">
             <option value="">Todos los estados</option>
             {% for value, label in status_choices %}
-                <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>
-                    {{ label }}
-                </option>
+              <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>
+                {{ label }}
+              </option>
             {% endfor %}
-        </select>
+          </select>
+        </div>
 
-        <select name="year">
+        <div class="col-12 col-md-6 col-lg-3">
+          <label for="year" class="form-label">Año</label>
+          <select id="year" name="year" class="form-select">
             <option value="">Todos los años</option>
             {% for y in years %}
-                <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %}>
-                    {{ y }}
-                </option>
+              <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %}>
+                {{ y }}
+              </option>
             {% endfor %}
-        </select>
+          </select>
+        </div>
 
-        <button type="submit">Filtrar</button>
-        <a href="{% url 'article_list' %}">Limpiar</a>
-    </form>
+        <div class="col-12 d-flex gap-2">
+          <button type="submit" class="btn btn-primary">Filtrar</button>
+          <a class="btn btn-outline-secondary" href="{% url 'article_list' %}">Limpiar</a>
+        </div>
+      </form>
+    </div>
+  </div>
 
-    <p>Total visible: {{ articles.count }}</p>
-
-    <table border="1" cellpadding="8">
-        <thead>
+  <div class="card glass">
+    <div class="card-body p-0">
+      <div class="table-responsive">
+        <table class="table table-dark table-hover align-middle mb-0">
+          <thead>
             <tr>
-                <th>Título</th>
-                <th>Autores</th>
-                <th>Año</th>
-                <th>Fuente</th>
-                <th>DOI</th>
-                <th>Estado</th>
+              <th class="ps-3">Título</th>
+              <th>Autores</th>
+              <th>Año</th>
+              <th>Fuente</th>
+              <th>DOI</th>
+              <th class="pe-3">Estado</th>
             </tr>
-        </thead>
-
-        <tbody>
+          </thead>
+          <tbody>
             {% for article in articles %}
-                <tr>
-                    <td>{{ article.title }}</td>
-                    <td>{{ article.authors }}</td>
-                    <td>{{ article.year }}</td>
-                    <td>{{ article.source }}</td>
-                    <td>{{ article.doi }}</td>
-                    <td>
-    <form method="post" action="{% url 'update_article_status' article.id %}">
-        {% csrf_token %}
-
-        <select name="status">
-            {% for value, label in status_choices %}
-                <option value="{{ value }}" {% if article.status == value %}selected{% endif %}>
-                    {{ label }}
-                </option>
-            {% endfor %}
-        </select>
-
-        <button type="submit">Guardar</button>
-    </form>
-</td>
-                </tr>
+              <tr>
+                <td class="ps-3 fw-medium">{{ article.title }}</td>
+                <td class="text-secondary">{{ article.authors }}</td>
+                <td>{{ article.year }}</td>
+                <td class="text-secondary">{{ article.source }}</td>
+                <td>
+                  {% if article.doi %}
+                    <span class="font-monospace">{{ article.doi }}</span>
+                  {% else %}
+                    <span class="text-secondary">—</span>
+                  {% endif %}
+                </td>
+                <td class="pe-3">
+                  <form method="post" action="{% url 'update_article_status' article.id %}" class="d-flex gap-2">
+                    {% csrf_token %}
+                    <select name="status" class="form-select form-select-sm">
+                      {% for value, label in status_choices %}
+                        <option value="{{ value }}" {% if article.status == value %}selected{% endif %}>
+                          {{ label }}
+                        </option>
+                      {% endfor %}
+                    </select>
+                    <button type="submit" class="btn btn-sm btn-outline-light">Guardar</button>
+                  </form>
+                </td>
+              </tr>
             {% empty %}
-                <tr>
-                    <td colspan="6">No hay artículos para mostrar.</td>
-                </tr>
+              <tr>
+                <td colspan="6" class="text-center text-secondary py-5">No hay artículos para mostrar.</td>
+              </tr>
             {% endfor %}
-        </tbody>
-    </table>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}
 
-</body>
-</html>
