@@ -10,6 +10,10 @@ urlpatterns = [
     path(
     "articles/<int:article_id>/delete/",
     views.delete_article,
-    name="delete_article"
-),
+    name="delete_article"),
+    path(
+        "articles/delete-all/",
+        views.delete_all_articles,
+        name="delete_all_articles"
+    ),
 ]

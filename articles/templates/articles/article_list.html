@@ -9,10 +9,32 @@
       <div class="text-secondary">Total visible: {{ articles.count }}</div>
     </div>
     <div>
+      <a> 
+      <form
+  method="post"
+  action="{% url 'delete_all_articles' %}"
+  onsubmit="return confirm('¿Seguro que quieres borrar TODOS los artículos? Esta acción no se puede deshacer.');"
+>
+  {% csrf_token %}
+
+  <button type="submit" class="btn btn-danger">
+    Borrar todos los artículos
+  </button>
+  
+</form>
+      </a>
       <a class="btn btn-outline-light" href="{% url 'upload_excel' %}">Subir archivo Excel</a>
-      <a class="btn btn-outline-secondary" href="{% url 'export_clean_excel' %}">Descargar Excel limpio</a>
+      <a 
+  href="{% url 'export_clean_excel' %}?{{ request.GET.urlencode }}"
+  class="btn btn-success"
+>
+  Descargar Excel filtrado
+</a>
+
     </div>
+    
   </div>
+  
 
   <div class="card glass mb-3">
     <div class="card-body">
@@ -82,6 +104,7 @@
               <th>Fuente</th>
               <th>DOI</th>
               <th class="pe-3">Estado</th>
+              <th class="pe-3">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -113,10 +136,20 @@
                     <button type="submit" class="btn btn-sm btn-outline-light">Guardar</button>
                   </form>
                 </td>
+                <td class="pe-3">
+                  <form
+                    method="post"
+                    action="{% url 'delete_article' article.id %}"
+                    onsubmit="return confirm('\u00bfSeguro que quieres borrar este art\u00edculo?');"
+                  >
+                    {% csrf_token %}
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Borrar</button>
+                  </form>
+                </td>
               </tr>
             {% empty %}
               <tr>
-                <td colspan="6" class="text-center text-secondary py-5">No hay artículos para mostrar.</td>
+                <td colspan="7" class="text-center text-secondary py-5">No hay artículos para mostrar.</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -125,4 +158,3 @@
     </div>
   </div>
 {% endblock %}
-

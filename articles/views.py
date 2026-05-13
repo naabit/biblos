@@ -18,17 +18,18 @@ def upload_excel(request):
 
             try:
                 df = pd.read_excel(excel_file)
-                print(df.columns.tolist())  # revisar columnas
+                print(df.columns.tolist())
 
                 for _, row in df.iterrows():
-
                     year = row.get("PY")
+
                     if pd.isna(year):
                         year = None
                     else:
                         year = int(year)
 
                     doi = row.get("DI")
+
                     if pd.isna(doi):
                         doi = ""
                     else:
@@ -55,7 +56,8 @@ def upload_excel(request):
 
     return render(request, "articles/upload_excel.html", {"form": form})
 
-def article_list(request):
+
+def get_filtered_articles(request):
     articles = Article.objects.all().order_by("-created_at")
 
     query = request.GET.get("q")
@@ -79,7 +81,11 @@ def article_list(request):
         articles = articles.filter(year=year)
 
     if doi_status == "with":
-        articles = articles.exclude(doi="").exclude(doi__isnull=True).exclude(doi__iexact="nan")
+        articles = articles.exclude(
+            Q(doi="") |
+            Q(doi__isnull=True) |
+            Q(doi__iexact="nan")
+        )
 
     if doi_status == "without":
         articles = articles.filter(
@@ -88,47 +94,24 @@ def article_list(request):
             Q(doi__iexact="nan")
         )
 
-    years = Article.objects.exclude(year=None).order_by("-year").values_list("year", flat=True).distinct()
+    return articles
 
-    return render(request, "articles/article_list.html", {
-        "articles": articles,
-        "years": years,
-        "query": query,
-        "selected_status": status,
-        "selected_year": year,
-        "status_choices": Article.STATUS_CHOICES,
-        "doi_status": doi_status,
-    })
-    articles = Article.objects.all().order_by("-created_at")
+
+def article_list(request):
+    articles = get_filtered_articles(request)
 
     query = request.GET.get("q")
     status = request.GET.get("status")
     year = request.GET.get("year")
-
-    if query:
-        articles = articles.filter(
-            Q(title__icontains=query) |
-            Q(authors__icontains=query) |
-            Q(abstract__icontains=query) |
-            Q(keywords__icontains=query) |
-            Q(doi__icontains=query)
-        )
-
-    if status:
-        articles = articles.filter(status=status)
-
-    if year:
-        articles = articles.filter(year=year)
-
-    years = Article.objects.exclude(year=None).order_by("-year").values_list("year", flat=True).distinct()
-    
     doi_status = request.GET.get("doi_status")
 
-    if doi_status == "with":
-            articles = articles.exclude(doi="").exclude(doi__isnull=True)
-
-    if doi_status == "without":
-            articles = articles.filter(doi="")
+    years = (
+        Article.objects
+        .exclude(year=None)
+        .order_by("-year")
+        .values_list("year", flat=True)
+        .distinct()
+    )
 
     return render(request, "articles/article_list.html", {
         "articles": articles,
@@ -139,6 +122,7 @@ def article_list(request):
         "status_choices": Article.STATUS_CHOICES,
         "doi_status": doi_status,
     })
+
 
 def delete_article(request, article_id):
     article = get_object_or_404(Article, id=article_id)
@@ -147,10 +131,11 @@ def delete_article(request, article_id):
         article.delete()
         messages.success(request, "Artículo eliminado correctamente.")
 
-    return redirect("articles_list")
+    return redirect("article_list")
+
 
 def update_article_status(request, article_id):
-    article = Article.objects.get(id=article_id)
+    article = get_object_or_404(Article, id=article_id)
 
     if request.method == "POST":
         new_status = request.POST.get("status")
@@ -162,8 +147,9 @@ def update_article_status(request, article_id):
 
     return redirect("article_list")
 
+
 def export_clean_excel(request):
-    articles = Article.objects.all().order_by("year", "title")
+    articles = get_filtered_articles(request).order_by("year", "title")
 
     data = []
 
@@ -186,8 +172,22 @@ def export_clean_excel(request):
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-    response["Content-Disposition"] = 'attachment; filename="biblos_articulos_limpios.xlsx"'
+    response["Content-Disposition"] = 'attachment; filename="biblos_articulos_filtrados.xlsx"'
 
     df.to_excel(response, index=False)
 
     return response
+
+def delete_all_articles(request):
+
+    if request.method == "POST":
+        total = Article.objects.count()
+
+        Article.objects.all().delete()
+
+        messages.success(
+            request,
+            f"Se eliminaron {total} artículos correctamente."
+        )
+
+    return redirect("article_list")
