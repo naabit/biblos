@@ -10,6 +10,7 @@
     </div>
     <div>
       <a class="btn btn-outline-light" href="{% url 'upload_excel' %}">Subir archivo Excel</a>
+      <a class="btn btn-outline-secondary" href="{% url 'export_clean_excel' %}">Descargar Excel limpio</a>
     </div>
   </div>
 
@@ -52,6 +53,15 @@
           </select>
         </div>
 
+        <div class="col-12 col-md-6 col-lg-3">
+          <label for="doi_status" class="form-label">Estado del DOI</label>
+          <select id="doi_status" name="doi_status" class="form-select">
+            <option value="">Todos los DOI</option>
+            <option value="with" {% if doi_status == "with" %}selected{% endif %}>Con DOI</option>
+            <option value="without" {% if doi_status == "without" %}selected{% endif %}>Sin DOI</option>
+          </select>
+        </div>
+
         <div class="col-12 d-flex gap-2">
           <button type="submit" class="btn btn-primary">Filtrar</button>
           <a class="btn btn-outline-secondary" href="{% url 'article_list' %}">Limpiar</a>
@@ -82,12 +92,14 @@
                 <td>{{ article.year }}</td>
                 <td class="text-secondary">{{ article.source }}</td>
                 <td>
-                  {% if article.doi %}
-                    <span class="font-monospace">{{ article.doi }}</span>
-                  {% else %}
-                    <span class="text-secondary">—</span>
-                  {% endif %}
-                </td>
+    {% if article.doi %}
+        <a href="https://doi.org/{{ article.doi }}" target="_blank" rel="noopener noreferrer">
+            {{ article.doi }}
+        </a>
+    {% else %}
+        Sin DOI
+    {% endif %}
+</td>
                 <td class="pe-3">
                   <form method="post" action="{% url 'update_article_status' article.id %}" class="d-flex gap-2">
                     {% csrf_token %}
