@@ -8,89 +8,169 @@
       <h1 class="h3 mb-1">Listado de artículos</h1>
       <div class="text-secondary">Total visible: {{ articles.count }}</div>
     </div>
-    <div>
-      <a> 
-      <form
-  method="post"
-  action="{% url 'delete_all_articles' %}"
-  onsubmit="return confirm('¿Seguro que quieres borrar TODOS los artículos? Esta acción no se puede deshacer.');"
->
-  {% csrf_token %}
-
-  <button type="submit" class="btn btn-danger">
-    Borrar todos los artículos
-  </button>
-  
-</form>
-      </a>
-      <a class="btn btn-outline-light" href="{% url 'upload_excel' %}">Subir archivo Excel</a>
-      <a 
-  href="{% url 'export_clean_excel' %}?{{ request.GET.urlencode }}"
-  class="btn btn-success"
->
-  Descargar Excel filtrado
-</a>
-
-    </div>
-    
-  </div>
-  
-
-  <div class="card glass mb-3">
-    <div class="card-body">
-      <form method="get" class="row g-2 align-items-end">
-        <div class="col-12 col-lg-6">
-          <label for="q" class="form-label">Búsqueda</label>
-          <input
-            id="q"
-            type="text"
-            name="q"
-            class="form-control"
-            placeholder="Buscar por título, autor, abstract o DOI"
-            value="{{ query|default:'' }}"
-          />
-        </div>
-
-        <div class="col-12 col-md-6 col-lg-3">
-          <label for="status" class="form-label">Estado</label>
-          <select id="status" name="status" class="form-select">
-            <option value="">Todos los estados</option>
-            {% for value, label in status_choices %}
-              <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>
-                {{ label }}
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="col-12 col-md-6 col-lg-3">
-          <label for="year" class="form-label">Año</label>
-          <select id="year" name="year" class="form-select">
-            <option value="">Todos los años</option>
-            {% for y in years %}
-              <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %}>
-                {{ y }}
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <div class="col-12 col-md-6 col-lg-3">
-          <label for="doi_status" class="form-label">Estado del DOI</label>
-          <select id="doi_status" name="doi_status" class="form-select">
-            <option value="">Todos los DOI</option>
-            <option value="with" {% if doi_status == "with" %}selected{% endif %}>Con DOI</option>
-            <option value="without" {% if doi_status == "without" %}selected{% endif %}>Sin DOI</option>
-          </select>
-        </div>
-
-        <div class="col-12 d-flex gap-2">
-          <button type="submit" class="btn btn-primary">Filtrar</button>
-          <a class="btn btn-outline-secondary" href="{% url 'article_list' %}">Limpiar</a>
-        </div>
+    <div class="d-flex flex-wrap gap-2 justify-content-end">
+      <a class="btn btn-outline-light" href="{% url 'upload_excel' %}">Subir Excel</a>
+      <a href="{% url 'export_clean_excel' %}?{{ request.GET.urlencode }}" class="btn btn-success">Descargar Excel filtrado</a>
+      <form method="post" action="{% url 'delete_all_articles' %}" class="m-0" onsubmit="return confirm('¿Seguro que quieres borrar TODOS los artículos? Esta acción no se puede deshacer.');">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger" aria-label="Borrar todo" title="Borrar todo">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 1.25rem; height: 1.25rem;">
+            <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+          </svg>
+        </button>
       </form>
     </div>
   </div>
+
+  <section class="mb-4">
+    <h5>Excel cargados en la base</h5>
+
+    {% if excel_uploads %}
+      <div class="d-flex flex-wrap gap-2">
+        {% for excel in excel_uploads %}
+          <div class="badge text-bg-light border d-flex align-items-center gap-2 p-2">
+            <span>
+              {{ excel.name }}
+              <small class="text-muted">
+                ({{ excel.articles.count }} artículos)
+              </small>
+            </span>
+
+            <form
+              method="post"
+              action="{% url 'delete_excel_upload' excel.id %}"
+              onsubmit="return confirm('¿Seguro que quieres borrar este Excel y todos sus artículos?');"
+              class="m-0"
+            >
+              {% csrf_token %}
+              <button
+                type="submit"
+                class="btn btn-sm btn-outline-danger py-0 px-2"
+                title="Eliminar Excel"
+              >
+                ×
+              </button>
+            </form>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-muted mb-0">
+        Aún no hay Excel cargados.
+      </p>
+    {% endif %}
+  </section>
+
+  <form method="get" class="mb-4">
+    <div class="card glass mb-3">
+      <div class="card-body">
+        <div class="row g-2 align-items-end">
+          <div class="col-12 col-lg-3">
+            <label for="q" class="form-label">Búsqueda</label>
+            <input
+              id="q"
+              type="text"
+              name="q"
+              class="form-control"
+              placeholder="Buscar por título, autor, abstract o DOI"
+              value="{{ query|default:'' }}"
+            />
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-2">
+            <label for="status" class="form-label">Estado</label>
+            <select id="status" name="status" class="form-select">
+              <option value="">Todos los estados</option>
+              {% for value, label in status_choices %}
+                <option value="{{ value }}" {% if selected_status == value %}selected{% endif %}>
+                  {{ label }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-1">
+            <label for="year" class="form-label">Año</label>
+            <select id="year" name="year" class="form-select">
+              <option value="">All</option>
+              {% for y in years %}
+                <option value="{{ y }}" {% if selected_year == y|stringformat:"s" %}selected{% endif %}>
+                  {{ y }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-12 col-md-6 col-lg-1">
+            <label for="doi_status" class="form-label">DOI</label>
+            <select id="doi_status" name="doi_status" class="form-select">
+              <option value="">All</option>
+              <option value="with" {% if doi_status == "with" %}selected{% endif %}>Con DOI</option>
+              <option value="without" {% if doi_status == "without" %}selected{% endif %}>Sin DOI</option>
+            </select>
+          </div>
+          <div class="col-md-2">
+            <label for="sort_by" class="form-label">
+              Ordenar por
+            </label>
+
+            <select name="sort_by" id="sort_by" class="form-select">
+              <option value="">Fecha de carga</option>
+
+              <option value="year"
+                {% if selected_sort_by == "year" %}selected{% endif %}
+              >
+                Año
+              </option>
+
+              <option value="title"
+                {% if selected_sort_by == "title" %}selected{% endif %}
+              >
+                Título alfabético
+              </option>
+
+              <option value="authors"
+                {% if selected_sort_by == "authors" %}selected{% endif %}
+              >
+                Autor
+              </option>
+            </select>
+          </div>
+
+          <div class="col-md-1">
+            <label for="sort_direction" class="form-label">
+              Dirección
+            </label>
+
+            <select name="sort_direction" id="sort_direction" class="form-select">
+              <option value="asc"
+                {% if selected_sort_direction == "asc" %}selected{% endif %}
+              >
+                Ascendente
+              </option>
+
+              <option value="desc"
+                {% if selected_sort_direction == "desc" %}selected{% endif %}
+              >
+                Descendente
+              </option>
+            </select>
+          </div>
+        </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-dark">Aplicar</button>
+      <a class="btn btn-outline-secondary" href="{% url 'article_list' %}">Limpiar</a>
+    </div>
+  </form>
 
   <div class="card glass">
     <div class="card-body p-0">
@@ -101,7 +181,7 @@
               <th class="ps-3">Título</th>
               <th>Autores</th>
               <th>Año</th>
-              <th>Fuente</th>
+              <th class="pe-1">Fuente</th>
               <th>DOI</th>
               <th class="pe-3">Estado</th>
               <th class="pe-3">Acciones</th>
@@ -115,14 +195,14 @@
                 <td>{{ article.year }}</td>
                 <td class="text-secondary">{{ article.source }}</td>
                 <td>
-    {% if article.doi %}
-        <a href="https://doi.org/{{ article.doi }}" target="_blank" rel="noopener noreferrer">
-            {{ article.doi }}
-        </a>
-    {% else %}
-        Sin DOI
-    {% endif %}
-</td>
+                  {% if article.doi %}
+                    <a href="https://doi.org/{{ article.doi }}" target="_blank" rel="noopener noreferrer">
+                      {{ article.doi }}
+                    </a>
+                  {% else %}
+                    Sin DOI
+                  {% endif %}
+                </td>
                 <td class="pe-3">
                   <form method="post" action="{% url 'update_article_status' article.id %}" class="d-flex gap-2">
                     {% csrf_token %}
@@ -133,17 +213,25 @@
                         </option>
                       {% endfor %}
                     </select>
-                    <button type="submit" class="btn btn-sm btn-outline-light">Guardar</button>
+                    <button type="submit" class="btn btn-sm btn-outline-light" aria-label="Guardar" title="Guardar">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 1.1rem; height: 1.1rem;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                      </svg>
+                    </button>
                   </form>
                 </td>
                 <td class="pe-3">
                   <form
                     method="post"
                     action="{% url 'delete_article' article.id %}"
-                    onsubmit="return confirm('\u00bfSeguro que quieres borrar este art\u00edculo?');"
+                    onsubmit="return confirm('¿Seguro que quieres borrar este artículo?');"
                   >
                     {% csrf_token %}
-                    <button type="submit" class="btn btn-sm btn-outline-danger">Borrar</button>
+                    <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Borrar" title="Borrar">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 1.1rem; height: 1.1rem;">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                      </svg>
+                    </button>
                   </form>
                 </td>
               </tr>

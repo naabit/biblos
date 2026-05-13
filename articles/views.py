@@ -1,12 +1,10 @@
-import pandas as pd
-
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Q
 from django.contrib import messages
 from django.http import HttpResponse
 
 from .forms import ExcelUploadForm
-from .models import Article
+from .models import Article, ExcelUpload
 
 
 def upload_excel(request):
@@ -14,12 +12,22 @@ def upload_excel(request):
         form = ExcelUploadForm(request.POST, request.FILES)
 
         if form.is_valid():
+            try:
+                import pandas as pd
+            except ModuleNotFoundError:
+                messages.error(
+                    request,
+                    "Falta la dependencia 'pandas'. Instálala (y 'openpyxl') para poder importar Excel.",
+                )
+                return redirect("article_list")
+
             excel_file = request.FILES["excel_file"]
 
             try:
                 df = pd.read_excel(excel_file)
-                print(df.columns.tolist())
-
+                excel_upload = ExcelUpload.objects.create(
+                    name=excel_file.name
+                )
                 for _, row in df.iterrows():
                     year = row.get("PY")
 
@@ -36,6 +44,7 @@ def upload_excel(request):
                         doi = str(doi).strip()
 
                     Article.objects.create(
+                        excel_upload=excel_upload,
                         title=str(row.get("TI", "")),
                         authors=str(row.get("AU", "")),
                         year=year,
@@ -58,12 +67,14 @@ def upload_excel(request):
 
 
 def get_filtered_articles(request):
-    articles = Article.objects.all().order_by("-created_at")
+    articles = Article.objects.all()
 
     query = request.GET.get("q")
     status = request.GET.get("status")
     year = request.GET.get("year")
     doi_status = request.GET.get("doi_status")
+    sort_by = request.GET.get("sort_by", "")
+    sort_direction = request.GET.get("sort_direction", "asc")
 
     if query:
         articles = articles.filter(
@@ -94,12 +105,32 @@ def get_filtered_articles(request):
             Q(doi__iexact="nan")
         )
 
+    sort_direction = sort_direction.lower()
+    if sort_direction not in {"asc", "desc"}:
+        sort_direction = "asc"
+
+    allowed_sort_fields = {
+        "year": "year",
+        "title": "title",
+        "authors": "authors",
+    }
+
+    if sort_by in allowed_sort_fields:
+        order_field = allowed_sort_fields[sort_by]
+        if sort_direction == "desc":
+            order_field = f"-{order_field}"
+        articles = articles.order_by(order_field)
+    else:
+        articles = articles.order_by("-created_at")
+
     return articles
 
 
 def article_list(request):
     articles = get_filtered_articles(request)
-
+    sort_by = request.GET.get("sort_by")
+    sort_direction = request.GET.get("sort_direction") or "asc"
+    excel_uploads = ExcelUpload.objects.all().order_by("-uploaded_at")
     query = request.GET.get("q")
     status = request.GET.get("status")
     year = request.GET.get("year")
@@ -115,12 +146,15 @@ def article_list(request):
 
     return render(request, "articles/article_list.html", {
         "articles": articles,
+        "excel_uploads": excel_uploads,
         "years": years,
         "query": query,
         "selected_status": status,
         "selected_year": year,
         "status_choices": Article.STATUS_CHOICES,
         "doi_status": doi_status,
+        "selected_sort_by": sort_by,
+        "selected_sort_direction": sort_direction,
     })
 
 
@@ -149,6 +183,15 @@ def update_article_status(request, article_id):
 
 
 def export_clean_excel(request):
+    try:
+        import pandas as pd
+    except ModuleNotFoundError:
+        messages.error(
+            request,
+            "Falta la dependencia 'pandas'. Instálala (y 'openpyxl') para poder exportar a Excel.",
+        )
+        return redirect("article_list")
+
     articles = get_filtered_articles(request).order_by("year", "title")
 
     data = []
@@ -178,6 +221,7 @@ def export_clean_excel(request):
 
     return response
 
+
 def delete_all_articles(request):
 
     if request.method == "POST":
@@ -191,3 +235,19 @@ def delete_all_articles(request):
         )
 
     return redirect("article_list")
+
+
+def delete_excel_upload(request, upload_id):
+    excel_upload = get_object_or_404(ExcelUpload, id=upload_id)
+
+    if request.method == "POST":
+        name = excel_upload.name
+        excel_upload.delete()
+
+        messages.success(
+            request,
+            f"Se eliminó el Excel '{name}' y todos sus artículos asociados."
+        )
+
+    return redirect("article_list")
+

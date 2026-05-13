@@ -16,4 +16,9 @@ urlpatterns = [
         views.delete_all_articles,
         name="delete_all_articles"
     ),
+    path(
+    "excel-upload/<int:upload_id>/delete/",
+    views.delete_excel_upload,
+    name="delete_excel_upload"
+    ),
 ]
