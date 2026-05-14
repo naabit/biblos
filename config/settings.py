@@ -7,8 +7,7 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-DEBUG = os.getenv("DEBUG", "False").strip().lower() in {"1", "true", "yes", "y", "on"}
-
+DEBUG = os.getenv("DEBUG", "False").lower() in ("1", "true", "yes")
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     if DEBUG:
@@ -25,8 +24,11 @@ def _split_env_list(value: str | None) -> list[str]:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
 
-ALLOWED_HOSTS = _split_env_list(os.getenv("ALLOWED_HOSTS")) or ["localhost", "127.0.0.1"]
+ALLOWED_HOSTS = _split_env_list(os.getenv("ALLOWED_HOSTS"))
 
+if DEBUG and not ALLOWED_HOSTS:
+    ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
+    
 CSRF_TRUSTED_ORIGINS = _split_env_list(os.getenv("CSRF_TRUSTED_ORIGINS"))
 
 if not DEBUG:
