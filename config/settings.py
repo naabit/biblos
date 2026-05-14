@@ -7,11 +7,38 @@ load_dotenv()
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+DEBUG = os.getenv("DEBUG", "False").strip().lower() in {"1", "true", "yes", "y", "on"}
+
 SECRET_KEY = os.getenv("SECRET_KEY")
-DEBUG = os.getenv("DEBUG", "False") == "True"
+if not SECRET_KEY:
+    if DEBUG:
+        SECRET_KEY = "django-insecure-change-me-in-dev-only"
+    else:
+        raise RuntimeError("SECRET_KEY is required when DEBUG=False")
+
+if not DEBUG and SECRET_KEY.startswith("django-insecure-"):
+    raise RuntimeError("SECRET_KEY must be a long random value in production (not 'django-insecure-*').")
 
 
-ALLOWED_HOSTS = ["*"]
+def _split_env_list(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+ALLOWED_HOSTS = _split_env_list(os.getenv("ALLOWED_HOSTS")) or ["localhost", "127.0.0.1"]
+
+CSRF_TRUSTED_ORIGINS = _split_env_list(os.getenv("CSRF_TRUSTED_ORIGINS"))
+
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+
+    SECURE_HSTS_SECONDS = int(os.getenv("SECURE_HSTS_SECONDS", "31536000"))
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
 
 
 # Application definition
