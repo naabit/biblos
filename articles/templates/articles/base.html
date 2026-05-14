@@ -32,6 +32,55 @@
         object-fit: contain;
         display: block;
       }
+      .article-table {
+        width: 100%;
+        table-layout: fixed;
+      }
+
+      .article-table th,
+      .article-table td {
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .article-table td {
+        white-space: nowrap;
+      }
+
+      .article-table td form {
+        min-width: 0;
+      }
+
+      .article-table td form .form-select {
+        flex: 1 1 auto;
+        min-width: 0;
+      }
+      .col-title {
+        width: 29%;
+      }
+
+      .col-authors {
+        width: 18%;
+      }
+      .col-journal {
+        width: 10%;
+      }
+
+      .col-year {
+        width: 6%;
+      }
+
+      .col-status {
+        width: 14%;
+      }
+
+      .col-doi {
+        width: 14%;
+      }
+
+      .col-actions {
+        width: 5%;
+      }
     </style>
     {% block extra_head %}{% endblock %}
   </head>
