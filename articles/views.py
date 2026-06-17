@@ -1,7 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Q
 from django.contrib import messages
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 
 from .forms import ExcelUploadForm
 from .models import Article, ExcelUpload
@@ -170,14 +170,32 @@ def delete_article(request, article_id):
 
 def update_article_status(request, article_id):
     article = get_object_or_404(Article, id=article_id)
+    is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
     if request.method == "POST":
         new_status = request.POST.get("status")
 
         if new_status in dict(Article.STATUS_CHOICES):
             article.status = new_status
-            article.save()
+            article.save(update_fields=["status"])
+            if is_ajax:
+                return JsonResponse({
+                    "ok": True,
+                    "status": article.status,
+                    "status_label": article.get_status_display(),
+                })
             messages.success(request, "Estado actualizado correctamente.")
+        elif is_ajax:
+            return JsonResponse(
+                {"ok": False, "error": "Estado inválido."},
+                status=400,
+            )
+
+    if is_ajax:
+        return JsonResponse(
+            {"ok": False, "error": "Método no permitido."},
+            status=405,
+        )
 
     return redirect("article_list")
 

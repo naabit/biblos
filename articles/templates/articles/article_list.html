@@ -2,6 +2,19 @@
 
 {% block title %}Artículos - Biblos{% endblock %}
 
+{% block extra_head %}
+  <style>
+    .status-control {
+      min-width: 0;
+    }
+
+    .status-feedback {
+      min-width: 4.5rem;
+      font-size: 0.75rem;
+    }
+  </style>
+{% endblock %}
+
 {% block content %}
   <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-3">
     <div>
@@ -204,21 +217,21 @@
                   {% endif %}
                 </td>
                 <td class="pe-3">
-                  <form method="post" action="{% url 'update_article_status' article.id %}" class="d-flex gap-2">
-                    {% csrf_token %}
-                    <select name="status" class="form-select form-select-sm">
+                  <div class="d-flex align-items-center gap-2 status-control">
+                    <select
+                      name="status"
+                      class="form-select form-select-sm js-status-select"
+                      data-url="{% url 'update_article_status' article.id %}"
+                      data-original-status="{{ article.status }}"
+                    >
                       {% for value, label in status_choices %}
                         <option value="{{ value }}" {% if article.status == value %}selected{% endif %}>
                           {{ label }}
                         </option>
                       {% endfor %}
                     </select>
-                    <button type="submit" class="btn btn-sm btn-outline-light" aria-label="Guardar" title="Guardar">
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 1.1rem; height: 1.1rem;">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                      </svg>
-                    </button>
-                  </form>
+                    <span class="status-feedback text-secondary js-status-feedback" aria-live="polite"></span>
+                  </div>
                 </td>
                 <td class="pe-3">
                   <form
@@ -245,4 +258,54 @@
       </div>
     </div>
   </div>
+{% endblock %}
+
+{% block extra_js %}
+  <script>
+    (() => {
+      const csrfToken = "{{ csrf_token }}";
+
+      document.querySelectorAll(".js-status-select").forEach((select) => {
+        select.addEventListener("change", async (event) => {
+          const currentSelect = event.currentTarget;
+          const feedback = currentSelect.parentElement.querySelector(".js-status-feedback");
+          const previousStatus = currentSelect.dataset.originalStatus;
+
+          currentSelect.disabled = true;
+          feedback.textContent = "Guardando...";
+          feedback.className = "status-feedback text-secondary js-status-feedback";
+
+          try {
+            const response = await fetch(currentSelect.dataset.url, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+                "X-CSRFToken": csrfToken,
+                "X-Requested-With": "XMLHttpRequest"
+              },
+              body: new URLSearchParams({
+                status: currentSelect.value
+              })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok || !data.ok) {
+              throw new Error(data.error || "No se pudo actualizar el estado.");
+            }
+
+            currentSelect.dataset.originalStatus = currentSelect.value;
+            feedback.textContent = "Guardado";
+            feedback.className = "status-feedback text-success js-status-feedback";
+          } catch (error) {
+            currentSelect.value = previousStatus;
+            feedback.textContent = "Error";
+            feedback.className = "status-feedback text-danger js-status-feedback";
+          } finally {
+            currentSelect.disabled = false;
+          }
+        });
+      });
+    })();
+  </script>
 {% endblock %}
