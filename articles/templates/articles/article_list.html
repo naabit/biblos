@@ -8,6 +8,37 @@
       min-width: 0;
     }
 
+    .js-status-select {
+      border-width: 1px;
+      transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+      color: #111 !important;
+    }
+
+    .js-status-select:focus,
+    .js-status-select:disabled {
+      color: #111 !important;
+    }
+
+    .status-pending {
+      background-color: rgba(255, 193, 7, 0.18);
+      border-color: rgba(255, 193, 7, 0.55);
+    }
+
+    .status-included {
+      background-color: rgba(25, 135, 84, 0.22);
+      border-color: rgba(25, 135, 84, 0.6);
+    }
+
+    .status-excluded {
+      background-color: rgba(220, 53, 69, 0.2);
+      border-color: rgba(220, 53, 69, 0.58);
+    }
+
+    .status-review {
+      background-color: rgba(13, 202, 240, 0.18);
+      border-color: rgba(13, 202, 240, 0.55);
+    }
+
     .status-feedback {
       min-width: 4.5rem;
       font-size: 0.75rem;
@@ -264,13 +295,29 @@
   <script>
     (() => {
       const csrfToken = "{{ csrf_token }}";
+      const statusClasses = [
+        "status-pending",
+        "status-included",
+        "status-excluded",
+        "status-review"
+      ];
+
+      const applyStatusClass = (select, statusValue) => {
+        select.classList.remove(...statusClasses);
+        if (statusValue) {
+          select.classList.add(`status-${statusValue}`);
+        }
+      };
 
       document.querySelectorAll(".js-status-select").forEach((select) => {
+        applyStatusClass(select, select.value);
+
         select.addEventListener("change", async (event) => {
           const currentSelect = event.currentTarget;
           const feedback = currentSelect.parentElement.querySelector(".js-status-feedback");
           const previousStatus = currentSelect.dataset.originalStatus;
 
+          applyStatusClass(currentSelect, currentSelect.value);
           currentSelect.disabled = true;
           feedback.textContent = "Guardando...";
           feedback.className = "status-feedback text-secondary js-status-feedback";
@@ -299,6 +346,7 @@
             feedback.className = "status-feedback text-success js-status-feedback";
           } catch (error) {
             currentSelect.value = previousStatus;
+            applyStatusClass(currentSelect, previousStatus);
             feedback.textContent = "Error";
             feedback.className = "status-feedback text-danger js-status-feedback";
           } finally {
