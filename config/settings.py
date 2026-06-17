@@ -1,13 +1,5 @@
-from pathlib import Path
-from dotenv import load_dotenv
-import os
-
-load_dotenv()
-
-# Build paths inside the project like this: BASE_DIR / 'subdir'.
-BASE_DIR = Path(__file__).resolve().parent.parent
-
 DEBUG = os.getenv("DEBUG", "False").lower() in ("1", "true", "yes")
+
 SECRET_KEY = os.getenv("SECRET_KEY")
 if not SECRET_KEY:
     if DEBUG:
@@ -16,7 +8,7 @@ if not SECRET_KEY:
         raise RuntimeError("SECRET_KEY is required when DEBUG=False")
 
 if not DEBUG and SECRET_KEY.startswith("django-insecure-"):
-    raise RuntimeError("SECRET_KEY must be a long random value in production (not 'django-insecure-*').")
+    raise RuntimeError("SECRET_KEY must be a long random value in production.")
 
 
 def _split_env_list(value: str | None) -> list[str]:
@@ -24,12 +16,36 @@ def _split_env_list(value: str | None) -> list[str]:
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
 
-ALLOWED_HOSTS = _split_env_list(os.getenv("ALLOWED_HOSTS"))
 
-if DEBUG and not ALLOWED_HOSTS:
-    ALLOWED_HOSTS = ["localhost", "127.0.0.1"]
-    
+def _normalize_allowed_hosts(value: str | None) -> list[str]:
+    hosts: list[str] = []
+    for item in _split_env_list(value):
+        parsed = urlparse(item if "://" in item else f"//{item}")
+        host = parsed.hostname or item.strip().strip("/")
+        if host:
+            hosts.append(host)
+    return hosts
+
+
+ALLOWED_HOSTS = _normalize_allowed_hosts(os.getenv("ALLOWED_HOSTS"))
+
+RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
+if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+
+if DEBUG:
+    for dev_host in ("localhost", "127.0.0.1"):
+        if dev_host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(dev_host)
+
+
 CSRF_TRUSTED_ORIGINS = _split_env_list(os.getenv("CSRF_TRUSTED_ORIGINS"))
+
+if RENDER_EXTERNAL_HOSTNAME:
+    render_origin = f"https://{RENDER_EXTERNAL_HOSTNAME}"
+    if render_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(render_origin)
+
 
 if not DEBUG:
     SESSION_COOKIE_SECURE = True
