@@ -43,6 +43,58 @@
       min-width: 4.5rem;
       font-size: 0.75rem;
     }
+
+    .table-scroll-top {
+      display: none;
+    }
+
+    .article-table-shell {
+      --article-header-offset: 0px;
+    }
+
+    .article-table-sticky-header {
+      display: none;
+      position: sticky;
+      top: var(--article-header-offset);
+      z-index: 4;
+      overflow: hidden;
+      background: #161b22;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+    }
+
+    .article-table-sticky-header.is-visible {
+      display: block;
+    }
+
+    .article-table-sticky-header table {
+      margin-bottom: 0;
+      table-layout: fixed;
+    }
+
+    .article-table-sticky-header th {
+      white-space: nowrap;
+      background: #161b22;
+    }
+
+    @media (max-width: 767.98px) {
+      .table-scroll-top {
+        display: block;
+        overflow-x: auto;
+        overflow-y: hidden;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: #0f141b;
+        -webkit-overflow-scrolling: touch;
+      }
+
+      .table-scroll-top-inner {
+        height: 1px;
+      }
+    }
+    
   </style>
 {% endblock %}
 
@@ -201,12 +253,6 @@
             </select>
           </div>
         </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-
       </div>
     </div>
 
@@ -216,11 +262,47 @@
     </div>
   </form>
 
-  <div class="card glass">
+  <div class="card glass article-table-shell">
     <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-dark table-hover align-middle mb-0 article-table">
+      <div class="table-scroll-top js-table-scroll-top" aria-hidden="true">
+        <div class="table-scroll-top-inner js-table-scroll-top-inner"></div>
+      </div>
+      <div class="article-table-sticky-header js-table-sticky-header" aria-hidden="true">
+        <table class="table table-dark align-middle article-table">
+          <colgroup>
+            <col class="col-title" />
+            <col class="col-authors" />
+            <col class="col-year" />
+            <col class="col-journal" />
+            <col class="col-doi" />
+            <col class="col-status" />
+            <col class="col-actions" />
+          </colgroup>
           <thead>
+            <tr>
+              <th class="col-title">Tí­tulo</th>
+              <th class="col-authors">Autores</th>
+              <th class="col-year">Año</th>
+              <th class="col-journal">Fuente</th>
+              <th class="col-doi">DOI</th>
+              <th class="col-status">Estado</th>
+              <th class="col-actions">Acciones</th>
+            </tr>
+          </thead>
+        </table>
+      </div>
+      <div class="table-responsive js-table-scroll-body">
+          <table class="table table-dark table-hover align-middle mb-0 article-table">
+            <colgroup>
+              <col class="col-title" />
+              <col class="col-authors" />
+              <col class="col-year" />
+              <col class="col-journal" />
+              <col class="col-doi" />
+              <col class="col-status" />
+              <col class="col-actions" />
+            </colgroup>
+            <thead class="js-table-head-origin">
             <tr>
               <th class="col-title">Título</th>
               <th class="col-authors">Autores</th>
@@ -353,6 +435,96 @@
             currentSelect.disabled = false;
           }
         });
+      });
+
+      document.querySelectorAll(".js-table-scroll-body").forEach((scrollBody) => {
+        const shell = scrollBody.closest(".article-table-shell");
+        const scrollTop = scrollBody.parentElement.querySelector(".js-table-scroll-top");
+        const scrollTopInner = scrollTop?.querySelector(".js-table-scroll-top-inner");
+        const stickyHeader = scrollBody.parentElement.querySelector(".js-table-sticky-header");
+        const originalHead = scrollBody.querySelector(".js-table-head-origin");
+        const table = scrollBody.querySelector(".article-table");
+
+        if (!shell || !scrollTop || !scrollTopInner || !stickyHeader || !originalHead || !table) {
+          return;
+        }
+
+        const stickyHeaderTable = stickyHeader.querySelector("table");
+
+        if (!stickyHeaderTable) {
+          return;
+        }
+
+        const syncStickyLayout = () => {
+          scrollTopInner.style.width = `${table.scrollWidth}px`;
+          stickyHeaderTable.style.width = `${table.scrollWidth}px`;
+          const stickyOffset = window.innerWidth <= 767.98 ? scrollTop.offsetHeight : 0;
+          shell.style.setProperty("--article-header-offset", `${stickyOffset}px`);
+        };
+
+        const syncStickyVisibility = () => {
+          const headRect = originalHead.getBoundingClientRect();
+          const shellRect = shell.getBoundingClientRect();
+          const stickyOffset = parseFloat(
+            getComputedStyle(shell).getPropertyValue("--article-header-offset")
+          ) || 0;
+          const shouldShow =
+            headRect.top <= stickyOffset &&
+            shellRect.bottom > stickyOffset + originalHead.offsetHeight;
+
+          stickyHeader.classList.toggle("is-visible", shouldShow);
+        };
+
+        const syncHorizontalScroll = (scrollLeft) => {
+          scrollTop.scrollLeft = scrollLeft;
+          stickyHeader.scrollLeft = scrollLeft;
+        };
+
+        let isSyncingTop = false;
+        let isSyncingBody = false;
+        let isSyncingHeader = false;
+
+        scrollTop.addEventListener("scroll", () => {
+          if (isSyncingTop) {
+            isSyncingTop = false;
+            return;
+          }
+
+          isSyncingBody = true;
+          scrollBody.scrollLeft = scrollTop.scrollLeft;
+          isSyncingHeader = true;
+          stickyHeader.scrollLeft = scrollTop.scrollLeft;
+        });
+
+        scrollBody.addEventListener("scroll", () => {
+          if (isSyncingBody) {
+            isSyncingBody = false;
+            return;
+          }
+
+          isSyncingTop = true;
+          isSyncingHeader = true;
+          syncHorizontalScroll(scrollBody.scrollLeft);
+        });
+
+        stickyHeader.addEventListener("scroll", () => {
+          if (isSyncingHeader) {
+            isSyncingHeader = false;
+            return;
+          }
+
+          isSyncingTop = true;
+          isSyncingBody = true;
+          scrollTop.scrollLeft = stickyHeader.scrollLeft;
+          scrollBody.scrollLeft = stickyHeader.scrollLeft;
+        });
+
+        syncStickyLayout();
+        syncHorizontalScroll(scrollBody.scrollLeft);
+        syncStickyVisibility();
+        window.addEventListener("resize", syncStickyLayout);
+        window.addEventListener("resize", syncStickyVisibility);
+        window.addEventListener("scroll", syncStickyVisibility, { passive: true });
       });
     })();
   </script>
