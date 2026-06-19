@@ -4,6 +4,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="{{ csrf_token }}" />
     <title>{% block title %}Biblos{% endblock %}</title>
     <link rel="icon" type="image/png" href="{% static 'img/favicon.png' %}" />
     <link
@@ -12,127 +13,7 @@
       integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH"
       crossorigin="anonymous"
     />
-    <style>
-      body {
-        background: radial-gradient(1200px circle at 10% 0%, rgba(13, 110, 253, 0.12), transparent 40%),
-          radial-gradient(900px circle at 90% 10%, rgba(32, 201, 151, 0.10), transparent 35%),
-          #0b0f14;
-      }
-      .glass {
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        backdrop-filter: blur(10px);
-      }
-      .table thead th {
-        white-space: nowrap;
-      }
-      .navbar-brand .navbar-logo {
-        height: 45px;
-        width: auto;
-        object-fit: contain;
-        display: block;
-      }
-      .article-table {
-        width: 100%;
-        table-layout: fixed;
-      }
-
-      .article-table th,
-      .article-table td {
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-
-      .article-table td {
-        white-space: nowrap;
-      }
-
-      .article-table td form {
-        min-width: 0;
-      }
-
-      .article-table td form .form-select {
-        flex: 1 1 auto;
-        min-width: 0;
-      }
-      .col-title {
-        width: 29%;
-      }
-
-      .col-authors {
-        width: 18%;
-      }
-      .col-journal {
-        width: 10%;
-      }
-
-      .col-year {
-        width: 6%;
-      }
-
-      .col-status {
-        width: 14%;
-      }
-
-      .col-doi {
-        width: 14%;
-      }
-
-      .col-actions {
-        width: 5%;
-      }
-
-      @media (max-width: 767.98px) {
-        .table-responsive {
-          overflow-x: auto;
-          -webkit-overflow-scrolling: touch;
-        }
-
-        .article-table {
-          width: 1100px;
-          min-width: 1100px;
-          table-layout: fixed;
-        }
-
-        .article-table th,
-        .article-table td {
-          overflow: hidden;
-          text-overflow: ellipsis;
-        }
-
-        .article-table td {
-          white-space: nowrap;
-        }
-
-        .col-title {
-          width: 280px;
-        }
-
-        .col-authors {
-          width: 200px;
-        }
-
-        .col-year {
-          width: 80px;
-        }
-
-        .col-journal {
-          width: 170px;
-        }
-
-        .col-doi {
-          width: 200px;
-        }
-
-        .col-status {
-          width: 150px;
-        }
-
-        .col-actions {
-          width: 80px;
-        }
-      }
-    </style>
+    <link rel="stylesheet" href="{% static 'articles/css/base.css' %}" />
     {% block extra_head %}{% endblock %}
   </head>
   <body>

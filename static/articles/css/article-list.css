@@ -1,0 +1,90 @@
+.status-control {
+  min-width: 0;
+}
+
+.js-status-select {
+  border-width: 1px;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  color: #111 !important;
+}
+
+.js-status-select:focus,
+.js-status-select:disabled {
+  color: #111 !important;
+}
+
+.status-pending {
+  background-color: rgba(255, 193, 7, 0.18);
+  border-color: rgba(255, 193, 7, 0.55);
+}
+
+.status-included {
+  background-color: rgba(25, 135, 84, 0.22);
+  border-color: rgba(25, 135, 84, 0.6);
+}
+
+.status-excluded {
+  background-color: rgba(220, 53, 69, 0.2);
+  border-color: rgba(220, 53, 69, 0.58);
+}
+
+.status-review {
+  background-color: rgba(13, 202, 240, 0.18);
+  border-color: rgba(13, 202, 240, 0.55);
+}
+
+.status-feedback {
+  min-width: 4.5rem;
+  font-size: 0.75rem;
+}
+
+.table-scroll-top {
+  display: none;
+}
+
+.article-table-shell {
+  --article-header-offset: 0px;
+}
+
+.article-table-sticky-header {
+  display: none;
+  position: sticky;
+  top: var(--article-header-offset);
+  z-index: 4;
+  overflow: hidden;
+  background: #161b22;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.22);
+}
+
+.article-table-sticky-header.is-visible {
+  display: block;
+}
+
+.article-table-sticky-header table {
+  margin-bottom: 0;
+  table-layout: fixed;
+}
+
+.article-table-sticky-header th {
+  white-space: nowrap;
+  background: #161b22;
+}
+
+@media (max-width: 767.98px) {
+  .table-scroll-top {
+    display: block;
+    overflow-x: auto;
+    overflow-y: hidden;
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    background: #0f141b;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-scroll-top-inner {
+    height: 1px;
+  }
+}
