@@ -1,133 +1,251 @@
 # Biblos
 
-Aplicación web en **Django** para **importar, revisar y exportar** artículos bibliográficos desde/ hacia Excel.
+**Biblos** es una aplicación web desarrollada en Django para importar, revisar, clasificar y exportar artículos bibliográficos desde archivos Excel.
 
-## Funcionalidades
+El proyecto está pensado como una herramienta de apoyo para procesos de revisión bibliográfica, exploración de bases de datos académicas y organización inicial de literatura científica.
 
-- Importa un `.xlsx` y crea artículos a partir de columnas típicas de WoS/Scopus:
-  - `TI` (título), `AU` (autores), `PY` (año), `AB` (resumen), `KW_Merged` (palabras clave), `DI` (DOI), `SO` (fuente).
-- Lista de artículos con búsqueda y filtros (estado, año, DOI).
-- Cambia el estado del artículo: `Pendiente`, `Incluido`, `Excluido`, `Revisar después`.
-- Exporta a Excel el resultado filtrado.
-- Elimina artículos individuales, todos los artículos, o una carga de Excel completa (con sus artículos).
+---
 
-## Requisitos
+## Características principales
 
-- Python 3.11+
-- Dependencias principales:
-  - Django
-  - pandas + openpyxl (para importar/exportar Excel)
+* Importación de archivos `.xlsx` con registros bibliográficos.
+* Gestión de cada carga como un lote independiente mediante el modelo `ExcelUpload`.
+* Asociación de artículos a una carga específica.
+* Visualización de artículos en una tabla con búsqueda, filtros y ordenamiento.
+* Filtros por estado de revisión, año y presencia de DOI.
+* Búsqueda por texto en campos bibliográficos relevantes.
+* Cambio de estado de cada artículo:
 
-## Configuración (variables de entorno)
+  * `Pendiente`
+  * `Incluido`
+  * `Excluido`
+  * `Revisar después`
+* Exportación a Excel del conjunto de artículos actualmente filtrado.
+* Eliminación de artículos individuales.
+* Eliminación de una carga completa.
+* Eliminación de todos los artículos asociados a la sesión activa.
 
-Este proyecto lee variables desde `.env` (ver `.env.example`):
+---
 
-- `DEBUG`: `True`/`False`
-- `SECRET_KEY`: clave larga y aleatoria (obligatoria cuando `DEBUG=False`)
-- `ALLOWED_HOSTS`: lista separada por comas, por ejemplo `biblos-adql.onrender.com`
-- `CSRF_TRUSTED_ORIGINS`: lista separada por comas con esquema, por ejemplo `https://biblos-adql.onrender.com`
+## Propósito del proyecto
 
-Cuando `DEBUG=False`, el proyecto habilita automáticamente:
+Biblos nace como un proyecto de portafolio orientado a trabajar con datos bibliográficos reales provenientes de archivos Excel.
 
-- `SECURE_SSL_REDIRECT=True` (redirige todo a HTTPS)
-- `SESSION_COOKIE_SECURE=True`
-- `CSRF_COOKIE_SECURE=True`
-- HSTS (configurable con `SECURE_HSTS_SECONDS`)
+Su objetivo es practicar y demostrar habilidades en:
 
-## Instalación (Windows / PowerShell)
+* desarrollo backend con Django;
+* modelado de datos;
+* manejo de archivos Excel;
+* limpieza e importación de datos con `pandas`;
+* construcción de filtros, búsquedas y vistas dinámicas;
+* exportación de datos;
+* organización de una aplicación web mantenible.
 
-1) Crear y activar un entorno virtual:
+---
+
+## Cómo funciona la sesión
+
+La aplicación no utiliza cuentas de usuario para la revisión principal.
+En su lugar, los artículos visibles se filtran por la sesión activa del navegador mediante `request.session.session_key`.
+
+Esto implica que:
+
+* cada navegador ve solo sus propias cargas;
+* dos navegadores distintos pueden trabajar con datos separados;
+* si se borra la sesión del navegador, la separación entre cargas puede perderse;
+* los datos siguen existiendo en la base de datos hasta que se eliminan desde la app o directamente desde la base.
+
+Este comportamiento permite simular una experiencia de trabajo individual sin implementar todavía un sistema completo de autenticación.
+
+---
+
+## Stack tecnológico
+
+* Python 3.11+
+* Django 5.2
+* pandas
+* openpyxl
+* python-dotenv
+* WhiteNoise
+* SQLite en desarrollo
+
+---
+
+## Instalación local
+
+Clonar el repositorio:
+
+```bash
+git clone https://github.com/naabit/biblos.git
+cd biblos
+```
+
+Crear y activar un entorno virtual:
 
 ```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 ```
 
-2) Instalar dependencias:
+Instalar dependencias:
 
 ```powershell
 python -m pip install --upgrade pip
-python -m pip install "Django==5.2.14" pandas openpyxl
+python -m pip install -r requirements.txt
 ```
 
-3) Migraciones:
+Aplicar migraciones:
 
 ```powershell
 python manage.py migrate
 ```
 
-4) (Opcional) Crear usuario admin:
+Opcionalmente, crear un superusuario para acceder al panel de administración:
 
 ```powershell
 python manage.py createsuperuser
 ```
 
-## Ejecutar
+---
 
-```powershell
-.\venv\Scripts\Activate.ps1
-python manage.py runserver
+## Variables de entorno
+
+El proyecto carga variables desde un archivo `.env` usando `python-dotenv`.
+
+Variables utilizadas actualmente:
+
+```env
+SECRET_KEY=tu-clave-secreta
+DEBUG=True
 ```
 
-- App: `http://127.0.0.1:8000/`
-- Admin: `http://127.0.0.1:8000/admin/`
+Ejemplo de archivo `.env`:
 
-## Uso rápido
-
-- Importar Excel: entra a la vista de carga (ruta `/upload/`).
-- Revisar/filtrar: usa el buscador y los filtros en la lista principal.
-- Exportar Excel filtrado: ruta `/export/`.
-
-## Estructura del proyecto
-
-- `config/`: settings/urls/wsgi/asgi del proyecto Django.
-- `articles/`: app principal (modelos, vistas, urls, templates).
-- `static/`: archivos estáticos (imágenes, etc.).
-- `db.sqlite3`: base de datos SQLite (desarrollo).
-
-## Árbol de directorios
-
-```text
-biblos/
-├── articles/
-│   ├── migrations/
-│   │   ├── 0001_initial.py
-│   │   └── 0002_excelupload_article_excel_upload.py
-│   ├── templates/
-│   │   └── articles/
-│   │       ├── article_list.html
-│   │       ├── base.html
-│   │       └── upload_excel.html
-│   ├── admin.py
-│   ├── apps.py
-│   ├── forms.py
-│   ├── models.py
-│   ├── tests.py
-│   ├── urls.py
-│   └── views.py
-├── config/
-│   ├── asgi.py
-│   ├── settings.py
-│   ├── urls.py
-│   └── wsgi.py
-├── static/
-│   └── img/
-│       ├── favicon.png
-│       └── logo.png
-├── staticfiles/            # generado por collectstatic (si aplica)
-├── .env
-├── .gitignore
-├── db.sqlite3
-├── manage.py
-├── README.md
-├── requirements.txt
-└── runtime.txt
+```env
+SECRET_KEY=django-insecure-cambia-esta-clave-en-desarrollo
+DEBUG=True
 ```
 
-## Notas
-
-- La importación/exportación requiere `pandas` y `openpyxl`. Si faltan, la app muestra un mensaje de error al intentar importar/exportar.
+> Nota: en desarrollo, el proyecto puede ejecutarse con `DEBUG=True`. Para producción, se debe usar una clave secreta segura y configurar correctamente `ALLOWED_HOSTS`.
 
 ---
 
-![firma](static/img/firma.png)
+## Ejecutar el proyecto
+
+Con el entorno virtual activado:
+
+```powershell
+python manage.py runserver
+```
+
+Luego abrir en el navegador:
+
+```text
+http://127.0.0.1:8000/
+```
+
+---
+
+## Rutas principales
+
+| Ruta       | Descripción                        |
+| ---------- | ---------------------------------- |
+| `/`        | Listado y revisión de artículos    |
+| `/upload/` | Carga de archivos Excel            |
+| `/export/` | Exportación del resultado filtrado |
+| `/admin/`  | Panel de administración de Django  |
+
+---
+
+## Formato esperado del Excel
+
+La importación espera archivos `.xlsx` con columnas bibliográficas como:
+
+| Columna     | Contenido          |
+| ----------- | ------------------ |
+| `TI`        | Título             |
+| `AU`        | Autores            |
+| `PY`        | Año de publicación |
+| `AB`        | Resumen            |
+| `KW_Merged` | Palabras clave     |
+| `DI`        | DOI                |
+| `SO`        | Fuente o revista   |
+
+Si alguna columna falta, la aplicación intenta completar el campo con cadena vacía o `None`, según corresponda.
+
+---
+
+## Estructura principal del proyecto
+
+```text
+biblos/
+|-- articles/
+|   |-- models.py
+|   |-- views.py
+|   |-- forms.py
+|   |-- utils.py
+|   `-- templates/articles/
+|-- config/
+|   |-- settings.py
+|   `-- urls.py
+|-- static/
+|   |-- articles/css/
+|   |-- articles/js/
+|   `-- img/
+|-- manage.py
+|-- requirements.txt
+|-- build.sh
+`-- README.md
+```
+
+---
+
+## Despliegue
+
+El proyecto incluye un archivo `build.sh` pensado para plataformas como Render.
+
+```bash
+pip install -r requirements.txt
+python manage.py collectstatic --noinput
+python manage.py migrate
+```
+
+Los archivos estáticos se sirven con WhiteNoise y se recopilan en la carpeta `staticfiles/`.
+
+---
+
+## Estado actual
+
+Biblos se encuentra en desarrollo activo como proyecto de portafolio.
+
+Actualmente permite importar, filtrar, revisar, clasificar y exportar artículos bibliográficos desde archivos Excel. La separación entre revisiones se maneja mediante sesiones del navegador, sin autenticación de usuarios.
+
+---
+
+## Limitaciones actuales
+
+* Solo acepta archivos `.xlsx`.
+* Usa SQLite como base de datos por defecto en desarrollo.
+* No incluye autenticación de usuarios para separar revisiones entre personas.
+* La separación de datos depende de la sesión activa del navegador.
+* La estructura de columnas esperada está pensada para archivos bibliográficos ya normalizados.
+* La configuración de idioma y zona horaria puede requerir ajustes para producción.
+
+---
+
+## Próximas mejoras posibles
+
+* Agregar autenticación de usuarios.
+* Permitir múltiples proyectos o revisiones por usuario.
+* Mejorar la validación del archivo importado.
+* Mostrar un resumen estadístico por lote.
+* Agregar paginación avanzada.
+* Permitir edición directa de campos bibliográficos.
+* Incorporar pruebas automatizadas.
+* Preparar configuración para PostgreSQL en producción.
+
+---
+
+## Autora
+
+Desarrollado por **Natalia García Cofré** como parte de su portafolio de desarrollo web, backend y herramientas digitales para organización de información.
