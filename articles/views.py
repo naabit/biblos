@@ -5,6 +5,7 @@ from django.http import HttpResponse, JsonResponse
 
 from .forms import ExcelUploadForm
 from .models import Article, ExcelUpload
+from .utils import get_or_create_session_key
 
 
 def upload_excel(request):
@@ -17,17 +18,21 @@ def upload_excel(request):
             except ModuleNotFoundError:
                 messages.error(
                     request,
-                    "Falta la dependencia 'pandas'. Instálala (y 'openpyxl') para poder importar Excel.",
+                    "Falta la dependencia 'pandas'. Instálala junto con 'openpyxl' para poder importar Excel.",
                 )
                 return redirect("article_list")
 
             excel_file = request.FILES["excel_file"]
+            session_key = get_or_create_session_key(request)
 
             try:
                 df = pd.read_excel(excel_file)
+
                 excel_upload = ExcelUpload.objects.create(
-                    name=excel_file.name
+                    session_key=session_key,
+                    name=excel_file.name,
                 )
+
                 for _, row in df.iterrows():
                     year = row.get("PY")
 
@@ -67,7 +72,11 @@ def upload_excel(request):
 
 
 def get_filtered_articles(request):
-    articles = Article.objects.all()
+    session_key = get_or_create_session_key(request)
+
+    articles = Article.objects.filter(
+        excel_upload__session_key=session_key
+    )
 
     query = request.GET.get("q")
     status = request.GET.get("status")
@@ -78,11 +87,11 @@ def get_filtered_articles(request):
 
     if query:
         articles = articles.filter(
-            Q(title__icontains=query) |
-            Q(authors__icontains=query) |
-            Q(abstract__icontains=query) |
-            Q(keywords__icontains=query) |
-            Q(doi__icontains=query)
+            Q(title__icontains=query)
+            | Q(authors__icontains=query)
+            | Q(abstract__icontains=query)
+            | Q(keywords__icontains=query)
+            | Q(doi__icontains=query)
         )
 
     if status:
@@ -93,19 +102,20 @@ def get_filtered_articles(request):
 
     if doi_status == "with":
         articles = articles.exclude(
-            Q(doi="") |
-            Q(doi__isnull=True) |
-            Q(doi__iexact="nan")
+            Q(doi="")
+            | Q(doi__isnull=True)
+            | Q(doi__iexact="nan")
         )
 
     if doi_status == "without":
         articles = articles.filter(
-            Q(doi="") |
-            Q(doi__isnull=True) |
-            Q(doi__iexact="nan")
+            Q(doi="")
+            | Q(doi__isnull=True)
+            | Q(doi__iexact="nan")
         )
 
     sort_direction = sort_direction.lower()
+
     if sort_direction not in {"asc", "desc"}:
         sort_direction = "asc"
 
@@ -117,8 +127,10 @@ def get_filtered_articles(request):
 
     if sort_by in allowed_sort_fields:
         order_field = allowed_sort_fields[sort_by]
+
         if sort_direction == "desc":
             order_field = f"-{order_field}"
+
         articles = articles.order_by(order_field)
     else:
         articles = articles.order_by("-created_at")
@@ -127,10 +139,17 @@ def get_filtered_articles(request):
 
 
 def article_list(request):
+    session_key = get_or_create_session_key(request)
+
     articles = get_filtered_articles(request)
+
     sort_by = request.GET.get("sort_by")
     sort_direction = request.GET.get("sort_direction") or "asc"
-    excel_uploads = ExcelUpload.objects.all().order_by("-uploaded_at")
+
+    excel_uploads = ExcelUpload.objects.filter(
+        session_key=session_key
+    ).order_by("-uploaded_at")
+
     query = request.GET.get("q")
     status = request.GET.get("status")
     year = request.GET.get("year")
@@ -138,6 +157,7 @@ def article_list(request):
 
     years = (
         Article.objects
+        .filter(excel_upload__session_key=session_key)
         .exclude(year=None)
         .order_by("-year")
         .values_list("year", flat=True)
@@ -159,7 +179,13 @@ def article_list(request):
 
 
 def delete_article(request, article_id):
-    article = get_object_or_404(Article, id=article_id)
+    session_key = get_or_create_session_key(request)
+
+    article = get_object_or_404(
+        Article,
+        id=article_id,
+        excel_upload__session_key=session_key,
+    )
 
     if request.method == "POST":
         article.delete()
@@ -169,7 +195,14 @@ def delete_article(request, article_id):
 
 
 def update_article_status(request, article_id):
-    article = get_object_or_404(Article, id=article_id)
+    session_key = get_or_create_session_key(request)
+
+    article = get_object_or_404(
+        Article,
+        id=article_id,
+        excel_upload__session_key=session_key,
+    )
+
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
     if request.method == "POST":
@@ -178,13 +211,16 @@ def update_article_status(request, article_id):
         if new_status in dict(Article.STATUS_CHOICES):
             article.status = new_status
             article.save(update_fields=["status"])
+
             if is_ajax:
                 return JsonResponse({
                     "ok": True,
                     "status": article.status,
                     "status_label": article.get_status_display(),
                 })
+
             messages.success(request, "Estado actualizado correctamente.")
+
         elif is_ajax:
             return JsonResponse(
                 {"ok": False, "error": "Estado inválido."},
@@ -206,7 +242,7 @@ def export_clean_excel(request):
     except ModuleNotFoundError:
         messages.error(
             request,
-            "Falta la dependencia 'pandas'. Instálala (y 'openpyxl') para poder exportar a Excel.",
+            "Falta la dependencia 'pandas'. Instálala junto con 'openpyxl' para poder exportar a Excel.",
         )
         return redirect("article_list")
 
@@ -233,7 +269,9 @@ def export_clean_excel(request):
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-    response["Content-Disposition"] = 'attachment; filename="biblos_articulos_filtrados.xlsx"'
+    response["Content-Disposition"] = (
+        'attachment; filename="biblos_articulos_filtrados.xlsx"'
+    )
 
     df.to_excel(response, index=False)
 
@@ -241,22 +279,36 @@ def export_clean_excel(request):
 
 
 def delete_all_articles(request):
+    session_key = get_or_create_session_key(request)
 
     if request.method == "POST":
-        total = Article.objects.count()
+        articles = Article.objects.filter(
+            excel_upload__session_key=session_key
+        )
 
-        Article.objects.all().delete()
+        total = articles.count()
+        articles.delete()
+
+        ExcelUpload.objects.filter(
+            session_key=session_key
+        ).delete()
 
         messages.success(
             request,
-            f"Se eliminaron {total} artículos correctamente."
+            f"Se eliminaron {total} artículos correctamente.",
         )
 
     return redirect("article_list")
 
 
 def delete_excel_upload(request, upload_id):
-    excel_upload = get_object_or_404(ExcelUpload, id=upload_id)
+    session_key = get_or_create_session_key(request)
+
+    excel_upload = get_object_or_404(
+        ExcelUpload,
+        id=upload_id,
+        session_key=session_key,
+    )
 
     if request.method == "POST":
         name = excel_upload.name
@@ -264,8 +316,25 @@ def delete_excel_upload(request, upload_id):
 
         messages.success(
             request,
-            f"Se eliminó el Excel '{name}' y todos sus artículos asociados."
+            f"Se eliminó el Excel '{name}' y todos sus artículos asociados.",
         )
 
     return redirect("article_list")
 
+
+def clear_my_uploads(request):
+    session_key = get_or_create_session_key(request)
+
+    if request.method == "POST":
+        uploads = ExcelUpload.objects.filter(
+            session_key=session_key
+        )
+
+        uploads.delete()
+
+        messages.success(
+            request,
+            "Se limpiaron los archivos de esta sesión.",
+        )
+
+    return redirect("article_list")

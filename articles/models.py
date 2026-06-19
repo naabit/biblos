@@ -1,6 +1,13 @@
 from django.db import models
 
+
 class ExcelUpload(models.Model):
+    session_key = models.CharField(
+        max_length=40,
+        db_index=True,
+        blank=True,
+        null=True,
+    )
     name = models.CharField(max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
@@ -8,19 +15,18 @@ class ExcelUpload(models.Model):
         return self.name
 
 class Article(models.Model):
-    excel_upload = models.ForeignKey(
-    ExcelUpload,
-    on_delete=models.CASCADE,
-    null=True,
-    blank=True,
-    related_name="articles"
-    )
     STATUS_CHOICES = [
         ("pending", "Pendiente"),
         ("included", "Incluido"),
         ("excluded", "Excluido"),
         ("review", "Revisar después"),
     ]
+
+    excel_upload = models.ForeignKey(
+        ExcelUpload,
+        on_delete=models.CASCADE,
+        related_name="articles",
+    )
 
     title = models.TextField(verbose_name="Título")
     authors = models.TextField(blank=True, verbose_name="Autores")
@@ -30,11 +36,12 @@ class Article(models.Model):
     doi = models.CharField(max_length=255, blank=True, verbose_name="DOI")
     source = models.CharField(max_length=100, blank=True, verbose_name="Fuente")
 
+
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
         default="pending",
-        verbose_name="Estado"
+        verbose_name="Estado",
     )
 
     notes = models.TextField(blank=True, verbose_name="Notas")
