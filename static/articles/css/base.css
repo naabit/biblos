@@ -4,6 +4,26 @@ body {
     #0b0f14;
 }
 
+.site-footer {
+  padding: 1rem 0 2rem;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.site-footer p {
+  margin: 0;
+}
+
+.site-footer a {
+  color: #59d0ff;
+  text-decoration: none;
+}
+
+.site-footer a:hover,
+.site-footer a:focus {
+  text-decoration: underline;
+}
+
 .glass {
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.08);

@@ -38,6 +38,27 @@
   font-size: 0.75rem;
 }
 
+.excel-upload-list {
+  min-width: 0;
+}
+
+.excel-upload-item {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.excel-upload-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.excel-upload-meta {
+  white-space: nowrap;
+}
+
 .table-scroll-top {
   display: none;
 }
@@ -72,6 +93,20 @@
 }
 
 @media (max-width: 767.98px) {
+  .excel-upload-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .excel-upload-item {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .excel-upload-item form {
+    flex-shrink: 0;
+  }
+
   .table-scroll-top {
     display: block;
     overflow-x: auto;

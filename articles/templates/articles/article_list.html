@@ -31,12 +31,12 @@
     <h5>Excel cargados en la base</h5>
 
     {% if excel_uploads %}
-      <div class="d-flex flex-wrap gap-2">
+      <div class="excel-upload-list d-flex flex-wrap gap-2">
         {% for excel in excel_uploads %}
-          <div class="badge text-bg-light border d-flex align-items-center gap-2 p-2">
-            <span>
+          <div class="excel-upload-item badge text-bg-light border d-flex align-items-center gap-2 p-2">
+            <span class="excel-upload-name">
               {{ excel.name }}
-              <small class="text-muted">
+              <small class="text-muted excel-upload-meta">
                 ({{ excel.articles.count }} artículos)
               </small>
             </span>
