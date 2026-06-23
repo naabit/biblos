@@ -21,5 +21,4 @@ urlpatterns = [
     views.delete_excel_upload,
     name="delete_excel_upload"
     ),
-    #path("datasets/clear/", views.clear_my_datasets, name="clear_my_datasets"),
 ]

@@ -18,7 +18,7 @@ def upload_excel(request):
             except ModuleNotFoundError:
                 messages.error(
                     request,
-                    "Falta la dependencia 'pandas'. Instálala junto con 'openpyxl' para poder importar Excel.",
+                    "Falta la dependencia 'pandas'. InstÃ¡lala junto con 'openpyxl' para poder importar Excel.",
                 )
                 return redirect("article_list")
 
@@ -223,7 +223,7 @@ def update_article_status(request, article_id):
 
         elif is_ajax:
             return JsonResponse(
-                {"ok": False, "error": "Estado inválido."},
+                {"ok": False, "error": "Estado invalido."},
                 status=400,
             )
 
@@ -242,7 +242,7 @@ def export_clean_excel(request):
     except ModuleNotFoundError:
         messages.error(
             request,
-            "Falta la dependencia 'pandas'. Instálala junto con 'openpyxl' para poder exportar a Excel.",
+            "Falta la dependencia 'pandas'. Instála junto con 'openpyxl' para poder exportar a Excel.",
         )
         return redirect("article_list")
 
@@ -317,24 +317,6 @@ def delete_excel_upload(request, upload_id):
         messages.success(
             request,
             f"Se eliminó el Excel '{name}' y todos sus artículos asociados.",
-        )
-
-    return redirect("article_list")
-
-
-def clear_my_uploads(request):
-    session_key = get_or_create_session_key(request)
-
-    if request.method == "POST":
-        uploads = ExcelUpload.objects.filter(
-            session_key=session_key
-        )
-
-        uploads.delete()
-
-        messages.success(
-            request,
-            "Se limpiaron los archivos de esta sesión.",
         )
 
     return redirect("article_list")
