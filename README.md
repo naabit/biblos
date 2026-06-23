@@ -1,4 +1,5 @@
 # Biblos
+![Django tests](https://github.com/naabit/biblos/actions/workflows/tests.yml/badge.svg)
 
 **Biblos** es una aplicación web desarrollada con Django para importar, revisar, clasificar y exportar artículos bibliográficos desde archivos Excel.
 
