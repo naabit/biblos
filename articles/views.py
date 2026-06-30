@@ -7,6 +7,12 @@ from .forms import ExcelUploadForm
 from .models import Article, ExcelUpload
 from .utils import get_or_create_session_key
 
+from django.db import transaction
+
+from .importers import (
+    normalize_bibliographic_records,
+    read_bibliographic_file,
+)
 
 def upload_excel(request):
     if request.method == "POST":
@@ -14,11 +20,12 @@ def upload_excel(request):
 
         if form.is_valid():
             try:
-                import pandas as pd
+                import pandas as pd  # noqa: F401
             except ModuleNotFoundError:
                 messages.error(
                     request,
-                    "Falta la dependencia 'pandas'. InstÃ¡lala junto con 'openpyxl' para poder importar Excel.",
+                    "Falta la dependencia 'pandas'. Instálala junto con "
+                    "'openpyxl' para poder importar archivos bibliográficos.",
                 )
                 return redirect("article_list")
 
@@ -26,50 +33,75 @@ def upload_excel(request):
             session_key = get_or_create_session_key(request)
 
             try:
-                df = pd.read_excel(excel_file)
+                dataframe = read_bibliographic_file(excel_file)
 
-                excel_upload = ExcelUpload.objects.create(
-                    session_key=session_key,
-                    name=excel_file.name,
-                )
+                import_result = normalize_bibliographic_records(dataframe)
 
-                for _, row in df.iterrows():
-                    year = row.get("PY")
+                records = import_result["records"]
+                source_database = import_result["source_database"]
+                skipped_rows = import_result["skipped_rows"]
 
-                    if pd.isna(year):
-                        year = None
-                    else:
-                        year = int(year)
+                if not records:
+                    messages.error(
+                        request,
+                        "No se encontraron artículos válidos. "
+                        "Revisa que el archivo contenga al menos una columna de título.",
+                    )
+                    return redirect("article_list")
 
-                    doi = row.get("DI")
-
-                    if pd.isna(doi):
-                        doi = ""
-                    else:
-                        doi = str(doi).strip()
-
-                    Article.objects.create(
-                        excel_upload=excel_upload,
-                        title=str(row.get("TI", "")),
-                        authors=str(row.get("AU", "")),
-                        year=year,
-                        abstract=str(row.get("AB", "")),
-                        keywords=str(row.get("KW_Merged", "")),
-                        doi=doi,
-                        source=str(row.get("SO", "")),
+                with transaction.atomic():
+                    excel_upload = ExcelUpload.objects.create(
+                        session_key=session_key,
+                        name=excel_file.name,
+                        source_database=source_database,
                     )
 
-                messages.success(request, "Archivo importado correctamente.")
+                    articles = [
+                        Article(
+                            excel_upload=excel_upload,
+                            title=record["title"],
+                            authors=record["authors"],
+                            year=record["year"],
+                            abstract=record["abstract"],
+                            keywords=record["keywords"],
+                            doi=record["doi"],
+                            source=record["source"],
+                            external_id=record["external_id"],
+                        )
+                        for record in records
+                    ]
+
+                    Article.objects.bulk_create(
+                        articles,
+                        batch_size=500,
+                    )
+
+                source_label = excel_upload.get_source_database_display()
+
+                message = (
+                    f"Archivo importado correctamente: "
+                    f"{len(records)} artículos desde {source_label}."
+                )
+
+                if skipped_rows:
+                    message += (
+                        f" Se omitieron {skipped_rows} filas sin título."
+                    )
+
+                messages.success(request, message)
+
                 return redirect("article_list")
 
-            except Exception as e:
-                messages.error(request, f"Error al importar el archivo: {e}")
+            except Exception as error:
+                messages.error(
+                    request,
+                    f"Error al importar el archivo: {error}",
+                )
 
     else:
         form = ExcelUploadForm()
 
     return render(request, "articles/upload_excel.html", {"form": form})
-
 
 def get_filtered_articles(request):
     session_key = get_or_create_session_key(request)
@@ -255,7 +287,9 @@ def export_clean_excel(request):
             "Título": article.title,
             "Autores": article.authors,
             "Año": article.year,
-            "Fuente": article.source,
+            "Fuente de publicación": article.source,
+            "Base de datos de origen": article.excel_upload.get_source_database_display(),
+            "Identificador externo": article.external_id,
             "DOI": article.doi,
             "Resumen": article.abstract,
             "Palabras clave": article.keywords,
