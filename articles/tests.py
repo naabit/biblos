@@ -261,6 +261,22 @@ class ArticlesViewTests(TestCase):
         self.assertEqual(response.json()["ok"], False)
         self.assertEqual(article.status, "pending")
 
+    def test_update_article_status_redirects_to_next_url(self):
+        article = self.create_article(status="pending")
+
+        response = self.client.post(
+            reverse("update_article_status", args=[article.id]),
+            {
+                "status": "included",
+                "next": reverse("duplicate_list"),
+            },
+        )
+
+        article.refresh_from_db()
+
+        self.assertRedirects(response, reverse("duplicate_list"))
+        self.assertEqual(article.status, "included")
+
     def test_delete_article_only_allows_access_to_current_session(self):
         own_article = self.create_article(title="Own article")
         other_upload = self.create_upload(self.other_session_key)
@@ -275,6 +291,17 @@ class ArticlesViewTests(TestCase):
 
         self.assertEqual(response.status_code, 404)
         self.assertTrue(Article.objects.filter(id=other_article.id).exists())
+
+    def test_delete_article_redirects_to_next_url(self):
+        article = self.create_article(title="Own article")
+
+        response = self.client.post(
+            reverse("delete_article", args=[article.id]),
+            {"next": reverse("duplicate_list")},
+        )
+
+        self.assertRedirects(response, reverse("duplicate_list"))
+        self.assertFalse(Article.objects.filter(id=article.id).exists())
 
     def test_delete_all_articles_only_clears_current_session(self):
         own_upload = self.create_upload(self.session_key, "own.xlsx")
