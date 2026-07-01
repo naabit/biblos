@@ -1,5 +1,3 @@
-import sys
-from types import SimpleNamespace
 from unittest.mock import patch
 
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -7,13 +5,24 @@ from django.test import Client, TestCase
 from django.test.utils import modify_settings
 from django.urls import reverse
 
+from .deduplication import (
+    find_duplicate_doi_groups,
+    find_duplicate_groups,
+    normalize_doi,
+    normalize_title,
+)
 from .models import Article, ExcelUpload
 
 
 class FakeImportDataFrame:
-    # Replica la parte mínima de pandas.DataFrame que usa la importación.
+    """
+    Replica la parte mínima de pandas.DataFrame que usa
+    la importación normalizada.
+    """
+
     def __init__(self, rows):
         self.rows = rows
+        self.columns = list(rows[0].keys()) if rows else []
 
     def iterrows(self):
         for index, row in enumerate(self.rows):
@@ -21,7 +30,11 @@ class FakeImportDataFrame:
 
 
 class FakeExportDataFrame:
-    # Conserva la última instancia para inspeccionar qué intentó exportar la vista.
+    """
+    Conserva la última instancia para inspeccionar qué intentó
+    exportar la vista.
+    """
+
     last_instance = None
 
     def __init__(self, rows):
@@ -36,25 +49,25 @@ class FakeExportDataFrame:
         })
 
 
-def make_fake_pandas_for_import(rows):
-    # La vista importa pandas dentro de la función; este stub evita depender del paquete real.
-    def isna(value):
-        return value != value
-
-    return SimpleNamespace(
-        read_excel=lambda _: FakeImportDataFrame(rows),
-        isna=isna,
-    )
-
-
 def make_fake_pandas_for_export():
-    return SimpleNamespace(DataFrame=FakeExportDataFrame)
+    """
+    La vista importa pandas dentro de la función al exportar.
+    Este stub evita generar un Excel real durante el test.
+    """
+    return type(
+        "FakePandas",
+        (),
+        {"DataFrame": FakeExportDataFrame},
+    )
 
 
 @modify_settings(MIDDLEWARE={"remove": ["whitenoise.middleware.WhiteNoiseMiddleware"]})
 class ArticlesViewTests(TestCase):
     def setUp(self):
-        # Dos clientes distintos nos permiten validar el aislamiento por session_key.
+        """
+        Dos clientes distintos permiten validar el aislamiento
+        de artículos y cargas según session_key.
+        """
         self.client = Client()
         session = self.client.session
         session.save()
@@ -65,14 +78,23 @@ class ArticlesViewTests(TestCase):
         other_session.save()
         self.other_session_key = other_session.session_key
 
-    def create_upload(self, session_key, name="dataset.xlsx"):
+    def create_upload(
+        self,
+        session_key,
+        name="dataset.xlsx",
+        source_database="unknown",
+    ):
         return ExcelUpload.objects.create(
             session_key=session_key,
             name=name,
+            source_database=source_database,
         )
 
     def create_article(self, session_key=None, upload=None, **overrides):
-        # Centraliza fixtures con defaults realistas para que cada test cambie solo lo relevante.
+        """
+        Centraliza fixtures con defaults realistas para que
+        cada test modifique solo lo que necesita.
+        """
         if upload is None:
             upload = self.create_upload(session_key or self.session_key)
 
@@ -85,9 +107,11 @@ class ArticlesViewTests(TestCase):
             "keywords": "Default keywords",
             "doi": "10.1000/default",
             "source": "Default source",
+            "external_id": "",
             "status": "pending",
         }
         data.update(overrides)
+
         return Article.objects.create(**data)
 
     def test_upload_excel_get_renders_form(self):
@@ -98,7 +122,7 @@ class ArticlesViewTests(TestCase):
         self.assertIn("form", response.context)
 
     def test_upload_excel_post_creates_articles_and_normalizes_fields(self):
-        fake_pandas = make_fake_pandas_for_import([
+        fake_dataframe = FakeImportDataFrame([
             {
                 "TI": "First article",
                 "AU": "Alice",
@@ -107,6 +131,7 @@ class ArticlesViewTests(TestCase):
                 "KW_Merged": "testing",
                 "DI": " 10.1000/first ",
                 "SO": "Journal 1",
+                "UT": "WOS:000001",
             },
             {
                 "TI": "Second article",
@@ -116,17 +141,23 @@ class ArticlesViewTests(TestCase):
                 "KW_Merged": "coverage",
                 "DI": float("nan"),
                 "SO": "Journal 2",
+                "UT": "WOS:000002",
             },
         ])
 
         excel_file = SimpleUploadedFile(
             "articles.xlsx",
             b"fake excel content",
-            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            content_type=(
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
         )
 
-        # Inyectamos el módulo falso exactamente donde la vista hace `import pandas`.
-        with patch.dict(sys.modules, {"pandas": fake_pandas}):
+        with patch(
+            "articles.views.read_bibliographic_file",
+            return_value=fake_dataframe,
+        ):
             response = self.client.post(
                 reverse("upload_excel"),
                 {"excel_file": excel_file},
@@ -142,16 +173,27 @@ class ArticlesViewTests(TestCase):
 
         self.assertEqual(upload.session_key, self.session_key)
         self.assertEqual(upload.name, "articles.xlsx")
+        self.assertEqual(upload.source_database, "wos")
+
         self.assertEqual(first_article.year, 2024)
         self.assertEqual(first_article.doi, "10.1000/first")
+        self.assertEqual(first_article.external_id, "WOS:000001")
+
         self.assertIsNone(second_article.year)
         self.assertEqual(second_article.doi, "")
+        self.assertEqual(second_article.external_id, "WOS:000002")
 
     def test_article_list_only_shows_articles_from_current_session(self):
         own_upload = self.create_upload(self.session_key, "own.xlsx")
-        other_upload = self.create_upload(self.other_session_key, "other.xlsx")
+        other_upload = self.create_upload(
+            self.other_session_key,
+            "other.xlsx",
+        )
 
-        own_article = self.create_article(upload=own_upload, title="Visible article")
+        own_article = self.create_article(
+            upload=own_upload,
+            title="Visible article",
+        )
         self.create_article(upload=other_upload, title="Hidden article")
 
         response = self.client.get(reverse("article_list"))
@@ -164,6 +206,7 @@ class ArticlesViewTests(TestCase):
 
     def test_article_list_filters_by_query_status_year_doi_and_sort(self):
         upload = self.create_upload(self.session_key)
+
         self.create_article(
             upload=upload,
             title="Zeta paper",
@@ -205,15 +248,17 @@ class ArticlesViewTests(TestCase):
             status="excluded",
         )
 
-        # Este caso prueba la composición completa de filtros más ordenamiento explícito.
-        response = self.client.get(reverse("article_list"), {
-            "q": "Neural",
-            "status": "included",
-            "year": "2024",
-            "doi_status": "with",
-            "sort_by": "title",
-            "sort_direction": "desc",
-        })
+        response = self.client.get(
+            reverse("article_list"),
+            {
+                "q": "Neural",
+                "status": "included",
+                "year": "2024",
+                "doi_status": "with",
+                "sort_by": "title",
+                "sort_direction": "desc",
+            },
+        )
 
         articles = list(response.context["articles"])
 
@@ -239,11 +284,14 @@ class ArticlesViewTests(TestCase):
         article.refresh_from_db()
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {
-            "ok": True,
-            "status": "included",
-            "status_label": "Incluido",
-        })
+        self.assertEqual(
+            response.json(),
+            {
+                "ok": True,
+                "status": "included",
+                "status_label": "Incluido",
+            },
+        )
         self.assertEqual(article.status, "included")
 
     def test_update_article_status_ajax_rejects_invalid_status(self):
@@ -258,7 +306,7 @@ class ArticlesViewTests(TestCase):
         article.refresh_from_db()
 
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.json()["ok"], False)
+        self.assertFalse(response.json()["ok"])
         self.assertEqual(article.status, "pending")
 
     def test_update_article_status_redirects_to_next_url(self):
@@ -280,17 +328,28 @@ class ArticlesViewTests(TestCase):
     def test_delete_article_only_allows_access_to_current_session(self):
         own_article = self.create_article(title="Own article")
         other_upload = self.create_upload(self.other_session_key)
-        other_article = self.create_article(upload=other_upload, title="Other article")
+        other_article = self.create_article(
+            upload=other_upload,
+            title="Other article",
+        )
 
-        response = self.client.post(reverse("delete_article", args=[own_article.id]))
+        response = self.client.post(
+            reverse("delete_article", args=[own_article.id])
+        )
 
         self.assertRedirects(response, reverse("article_list"))
-        self.assertFalse(Article.objects.filter(id=own_article.id).exists())
+        self.assertFalse(
+            Article.objects.filter(id=own_article.id).exists()
+        )
 
-        response = self.client.post(reverse("delete_article", args=[other_article.id]))
+        response = self.client.post(
+            reverse("delete_article", args=[other_article.id])
+        )
 
         self.assertEqual(response.status_code, 404)
-        self.assertTrue(Article.objects.filter(id=other_article.id).exists())
+        self.assertTrue(
+            Article.objects.filter(id=other_article.id).exists()
+        )
 
     def test_delete_article_redirects_to_next_url(self):
         article = self.create_article(title="Own article")
@@ -305,7 +364,10 @@ class ArticlesViewTests(TestCase):
 
     def test_delete_all_articles_only_clears_current_session(self):
         own_upload = self.create_upload(self.session_key, "own.xlsx")
-        other_upload = self.create_upload(self.other_session_key, "other.xlsx")
+        other_upload = self.create_upload(
+            self.other_session_key,
+            "other.xlsx",
+        )
 
         self.create_article(upload=own_upload, title="Own 1")
         self.create_article(upload=own_upload, title="Own 2")
@@ -314,13 +376,78 @@ class ArticlesViewTests(TestCase):
         response = self.client.post(reverse("delete_all_articles"))
 
         self.assertRedirects(response, reverse("article_list"))
-        self.assertEqual(Article.objects.filter(excel_upload__session_key=self.session_key).count(), 0)
-        self.assertEqual(ExcelUpload.objects.filter(session_key=self.session_key).count(), 0)
-        self.assertEqual(Article.objects.filter(excel_upload__session_key=self.other_session_key).count(), 1)
-        self.assertEqual(ExcelUpload.objects.filter(session_key=self.other_session_key).count(), 1)
+        self.assertEqual(
+            Article.objects.filter(
+                excel_upload__session_key=self.session_key
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            ExcelUpload.objects.filter(
+                session_key=self.session_key
+            ).count(),
+            0,
+        )
+        self.assertEqual(
+            Article.objects.filter(
+                excel_upload__session_key=self.other_session_key
+            ).count(),
+            1,
+        )
+        self.assertEqual(
+            ExcelUpload.objects.filter(
+                session_key=self.other_session_key
+            ).count(),
+            1,
+        )
+
+    def test_duplicate_list_only_shows_duplicate_groups_from_current_session(self):
+        own_upload = self.create_upload(
+            self.session_key,
+            "own.xlsx",
+            source_database="wos",
+        )
+        other_upload = self.create_upload(
+            self.other_session_key,
+            "other.xlsx",
+            source_database="scopus",
+        )
+
+        self.create_article(
+            upload=own_upload,
+            title="Own duplicate one",
+            doi="10.1000/own.001",
+        )
+        self.create_article(
+            upload=own_upload,
+            title="Own duplicate two",
+            doi="doi:10.1000/OWN.001",
+        )
+
+        self.create_article(
+            upload=other_upload,
+            title="Other duplicate one",
+            doi="10.1000/other.001",
+        )
+        self.create_article(
+            upload=other_upload,
+            title="Other duplicate two",
+            doi="10.1000/other.001",
+        )
+
+        response = self.client.get(reverse("duplicate_list"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, "articles/duplicate_list.html")
+        self.assertEqual(len(response.context["duplicate_groups"]), 1)
+        self.assertContains(response, "Own duplicate one")
+        self.assertNotContains(response, "Other duplicate one")
 
     def test_export_clean_excel_exports_filtered_articles(self):
-        upload = self.create_upload(self.session_key)
+        upload = self.create_upload(
+            self.session_key,
+            source_database="wos",
+        )
         self.create_article(
             upload=upload,
             title="Included paper",
@@ -330,6 +457,7 @@ class ArticlesViewTests(TestCase):
             keywords="kw",
             doi="10.1000/included",
             source="Journal",
+            external_id="WOS:000123",
             status="included",
         )
         self.create_article(
@@ -348,35 +476,220 @@ class ArticlesViewTests(TestCase):
             status="included",
         )
 
-        # Reiniciamos el estado compartido del doble antes de inspeccionar una exportación nueva.
         FakeExportDataFrame.last_instance = None
         fake_pandas = make_fake_pandas_for_export()
 
-        with patch.dict(sys.modules, {"pandas": fake_pandas}):
-            response = self.client.get(reverse("export_clean_excel"), {
-                "status": "included",
-                "doi_status": "with",
-            })
+        with patch.dict("sys.modules", {"pandas": fake_pandas}):
+            response = self.client.get(
+                reverse("export_clean_excel"),
+                {
+                    "status": "included",
+                    "doi_status": "with",
+                },
+            )
 
         exported_frame = FakeExportDataFrame.last_instance
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response["Content-Type"],
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            (
+                "application/vnd.openxmlformats-officedocument."
+                "spreadsheetml.sheet"
+            ),
         )
-        self.assertIn("biblos_articulos_filtrados.xlsx", response["Content-Disposition"])
+        self.assertIn(
+            "biblos_articulos_filtrados.xlsx",
+            response["Content-Disposition"],
+        )
         self.assertIsNotNone(exported_frame)
-        # Verifica tanto el contrato HTTP como el contenido exacto entregado a DataFrame.to_excel.
-        self.assertEqual(exported_frame.export_calls[0]["index"], False)
-        self.assertEqual(exported_frame.rows, [{
-            "Título": "Included paper",
-            "Autores": "Alice",
-            "Año": 2024,
-            "Fuente": "Journal",
-            "DOI": "10.1000/included",
-            "Resumen": "Abstract",
-            "Palabras clave": "kw",
-            "Estado": "Incluido",
-            "Notas": "",
-        }])
+        self.assertFalse(exported_frame.export_calls[0]["index"])
+
+        self.assertEqual(
+            exported_frame.rows,
+            [{
+                "Título": "Included paper",
+                "Autores": "Alice",
+                "Año": 2024,
+                "Fuente de publicación": "Journal",
+                "Base de datos de origen": "Web of Science",
+                "Identificador externo": "WOS:000123",
+                "DOI": "10.1000/included",
+                "Resumen": "Abstract",
+                "Palabras clave": "kw",
+                "Estado": "Incluido",
+                "Notas": "",
+            }],
+        )
+
+
+class DeduplicationTests(TestCase):
+    def setUp(self):
+        self.session_key = "deduplication-test-session"
+
+    def create_upload(self, source_database="unknown"):
+        return ExcelUpload.objects.create(
+            session_key=self.session_key,
+            name="deduplication.xlsx",
+            source_database=source_database,
+        )
+
+    def create_article(self, upload, **overrides):
+        data = {
+            "excel_upload": upload,
+            "title": "Default title",
+            "authors": "Default author",
+            "year": 2024,
+            "abstract": "",
+            "keywords": "",
+            "doi": "",
+            "source": "",
+            "external_id": "",
+            "status": "pending",
+        }
+        data.update(overrides)
+
+        return Article.objects.create(**data)
+
+    def test_normalize_doi_removes_common_prefixes(self):
+        self.assertEqual(
+            normalize_doi("https://doi.org/10.1000/TEST.001"),
+            "10.1000/test.001",
+        )
+        self.assertEqual(
+            normalize_doi("doi: 10.1000/test.001"),
+            "10.1000/test.001",
+        )
+        self.assertEqual(normalize_doi("nan"), "")
+        self.assertEqual(normalize_doi(""), "")
+
+    def test_normalize_title_ignores_accents_case_and_punctuation(self):
+        first_title = "Inteligencia Artificial: una revisión."
+        second_title = "inteligencia artificial una revision"
+
+        self.assertEqual(
+            normalize_title(first_title),
+            normalize_title(second_title),
+        )
+
+    def test_find_duplicate_doi_groups_groups_same_doi(self):
+        upload = self.create_upload()
+
+        first_article = self.create_article(
+            upload,
+            title="Artículo desde Scopus",
+            doi="https://doi.org/10.1000/duplicate.001",
+        )
+        second_article = self.create_article(
+            upload,
+            title="Artículo desde WoS",
+            doi="doi:10.1000/DUPLICATE.001",
+        )
+
+        groups = find_duplicate_doi_groups(
+            Article.objects.filter(
+                excel_upload__session_key=self.session_key
+            )
+        )
+
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]["type"], "doi")
+        self.assertEqual(
+            groups[0]["identifier"],
+            "10.1000/duplicate.001",
+        )
+        self.assertEqual(groups[0]["count"], 2)
+        self.assertEqual(
+            {article.id for article in groups[0]["articles"]},
+            {first_article.id, second_article.id},
+        )
+
+    def test_find_duplicate_groups_detects_title_and_year_without_doi(self):
+        upload = self.create_upload()
+
+        first_article = self.create_article(
+            upload,
+            title="Tecnología y desigualdad: una revisión",
+            year=2024,
+            doi="",
+        )
+        second_article = self.create_article(
+            upload,
+            title="tecnologia y desigualdad una revision.",
+            year=2024,
+            doi="",
+        )
+
+        groups = find_duplicate_groups(
+            Article.objects.filter(
+                excel_upload__session_key=self.session_key
+            )
+        )
+
+        title_year_groups = [
+            group
+            for group in groups
+            if group["type"] == "title_year"
+        ]
+
+        self.assertEqual(len(title_year_groups), 1)
+        self.assertEqual(title_year_groups[0]["count"], 2)
+        self.assertEqual(
+            {article.id for article in title_year_groups[0]["articles"]},
+            {first_article.id, second_article.id},
+        )
+
+    def test_find_duplicate_groups_does_not_match_same_title_with_different_years(self):
+        upload = self.create_upload()
+
+        self.create_article(
+            upload,
+            title="Tecnología y desigualdad",
+            year=2023,
+            doi="",
+        )
+        self.create_article(
+            upload,
+            title="Tecnología y desigualdad",
+            year=2024,
+            doi="",
+        )
+
+        groups = find_duplicate_groups(
+            Article.objects.filter(
+                excel_upload__session_key=self.session_key
+            )
+        )
+
+        title_year_groups = [
+            group
+            for group in groups
+            if group["type"] == "title_year"
+        ]
+
+        self.assertEqual(title_year_groups, [])
+
+    def test_find_duplicate_groups_avoids_repeating_exact_doi_as_title_year(self):
+        upload = self.create_upload()
+
+        self.create_article(
+            upload,
+            title="Artículo repetido",
+            year=2025,
+            doi="10.1000/repeated.001",
+        )
+        self.create_article(
+            upload,
+            title="Artículo repetido",
+            year=2025,
+            doi="10.1000/repeated.001",
+        )
+
+        groups = find_duplicate_groups(
+            Article.objects.filter(
+                excel_upload__session_key=self.session_key
+            )
+        )
+
+        self.assertEqual(len(groups), 1)
+        self.assertEqual(groups[0]["type"], "doi")
