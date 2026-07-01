@@ -15,7 +15,7 @@ from .importers import (
     read_bibliographic_file,
 )
 
-from .deduplication import find_duplicate_doi_groups
+from .deduplication import find_duplicate_groups
 
 
 def upload_excel(request):
@@ -220,7 +220,7 @@ def duplicate_list(request):
         excel_upload__session_key=session_key
     ).select_related("excel_upload")
 
-    duplicate_groups = find_duplicate_doi_groups(articles)
+    duplicate_groups = find_duplicate_groups(articles)
 
     return render(
         request,
