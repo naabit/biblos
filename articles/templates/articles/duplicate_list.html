@@ -1,0 +1,113 @@
+{% extends "articles/base.html" %}
+
+{% block content %}
+<div class="container py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h1 class="h3 mb-1">Posibles duplicados</h1>
+            <p class="text-muted mb-0">
+                Registros agrupados porque comparten el mismo DOI.
+                Biblos no elimina ningún artículo automáticamente.
+            </p>
+        </div>
+
+        <a href="{% url 'article_list' %}" class="btn btn-outline-secondary">
+            Volver a artículos
+        </a>
+    </div>
+
+    {% if duplicate_groups %}
+        <div class="alert alert-warning">
+            Se encontraron {{ duplicate_groups|length }} grupo{{ duplicate_groups|length|pluralize:"s" }}
+            de posibles duplicados.
+        </div>
+
+        {% for group in duplicate_groups %}
+            <div class="card mb-4 shadow-sm">
+                <div class="card-header">
+                    <strong>DOI compartido:</strong> {{ group.doi }}
+                    <span class="badge text-bg-warning ms-2">
+                        {{ group.count }} registros
+                    </span>
+                </div>
+
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Título</th>
+                                    <th>Año</th>
+                                    <th>Autores</th>
+                                    <th>Fuente</th>
+                                    <th>Base de datos</th>
+                                    <th>ID externo</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+
+                            <tbody>
+                                {% for article in group.articles %}
+                                    <tr>
+                                        <td>{{ article.title }}</td>
+                                        <td>{{ article.year|default:"—" }}</td>
+                                        <td>{{ article.authors|default:"—" }}</td>
+                                        <td>{{ article.source|default:"—" }}</td>
+                                        <td>
+                                            {{ article.excel_upload.get_source_database_display }}
+                                        </td>
+                                        <td>{{ article.external_id|default:"—" }}</td>
+                                        <td>
+                                            <form
+                                                method="post"
+                                                action="{% url 'update_article_status' article.id %}"
+                                                class="m-0"
+                                            >
+                                                {% csrf_token %}
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <select
+                                                    name="status"
+                                                    class="form-select form-select-sm"
+                                                    onchange="this.form.submit()"
+                                                >
+                                                    {% for value, label in status_choices %}
+                                                        <option value="{{ value }}" {% if article.status == value %}selected{% endif %}>
+                                                            {{ label }}
+                                                        </option>
+                                                    {% endfor %}
+                                                </select>
+                                            </form>
+                                        </td>
+                                        <td>
+                                            <form
+                                                method="post"
+                                                action="{% url 'delete_article' article.id %}"
+                                                class="m-0"
+                                                onsubmit="return confirm('¿Seguro que quieres borrar este artículo?');"
+                                            >
+                                                {% csrf_token %}
+                                                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                                <button type="submit" class="btn btn-sm btn-outline-danger" aria-label="Borrar" title="Borrar">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" style="width: 1.1rem; height: 1.1rem;">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                                    </svg>
+                                                </button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+
+    {% else %}
+        <div class="alert alert-success">
+            No se encontraron duplicados por DOI entre los artículos de tu sesión.
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

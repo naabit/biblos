@@ -16,6 +16,7 @@
     <div class="d-flex flex-wrap gap-2 justify-content-end">
       <a class="btn btn-outline-light" href="{% url 'upload_excel' %}">Subir Excel</a>
       <a href="{% url 'export_clean_excel' %}?{{ request.GET.urlencode }}" class="btn btn-success">Descargar Excel filtrado</a>
+      <a href="{% url 'duplicate_list' %}" class="btn btn-outline-warning">Revisar duplicados</a>
       <form method="post" action="{% url 'delete_all_articles' %}" class="m-0" onsubmit="return confirm('¿Seguro que quieres borrar TODOS los artículos? Esta acción no se puede deshacer.');">
         {% csrf_token %}
         <button type="submit" class="btn btn-danger" aria-label="Borrar todo" title="Borrar todo">

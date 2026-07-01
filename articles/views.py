@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.db.models import Q
 from django.contrib import messages
 from django.http import HttpResponse, JsonResponse
+from django.utils.http import url_has_allowed_host_and_scheme
 
 from .forms import ExcelUploadForm
 from .models import Article, ExcelUpload
@@ -13,6 +14,9 @@ from .importers import (
     normalize_bibliographic_records,
     read_bibliographic_file,
 )
+
+from .deduplication import find_duplicate_doi_groups
+
 
 def upload_excel(request):
     if request.method == "POST":
@@ -209,6 +213,45 @@ def article_list(request):
         "selected_sort_direction": sort_direction,
     })
 
+def duplicate_list(request):
+    session_key = get_or_create_session_key(request)
+
+    articles = Article.objects.filter(
+        excel_upload__session_key=session_key
+    ).select_related("excel_upload")
+
+    duplicate_groups = find_duplicate_doi_groups(articles)
+
+    return render(
+        request,
+        "articles/duplicate_list.html",
+        {
+            "duplicate_groups": duplicate_groups,
+            "status_choices": Article.STATUS_CHOICES,
+        },
+    )
+
+
+def get_safe_redirect_url(request, default_name="article_list"):
+    next_url = request.POST.get("next") or request.GET.get("next")
+
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return next_url
+
+    referer = request.META.get("HTTP_REFERER")
+
+    if referer and url_has_allowed_host_and_scheme(
+        referer,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        return referer
+
+    return default_name
 
 def delete_article(request, article_id):
     session_key = get_or_create_session_key(request)
@@ -223,7 +266,7 @@ def delete_article(request, article_id):
         article.delete()
         messages.success(request, "Artículo eliminado correctamente.")
 
-    return redirect("article_list")
+    return redirect(get_safe_redirect_url(request))
 
 
 def update_article_status(request, article_id):
@@ -265,7 +308,7 @@ def update_article_status(request, article_id):
             status=405,
         )
 
-    return redirect("article_list")
+    return redirect(get_safe_redirect_url(request))
 
 
 def export_clean_excel(request):
